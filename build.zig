@@ -21,9 +21,13 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     exe.addModule("sqlite", sqlite.module("sqlite"));
-    // instead bundle zig-sqlite's sqlite3 instead of system sqlite3
-    //exe.linkLibrary(sqlite.artifact("sqlite"));
-    exe.linkSystemLibrary("sqlite3");
+
+    const use_builtin_sqlite = b.option(bool, "bundle-sqlite", "Use the sqlite library that comes with the zig bindings instead of the system installation") orelse false;
+    if (use_builtin_sqlite) {
+        exe.linkLibrary(sqlite.artifact("sqlite"));
+    } else {
+        exe.linkSystemLibrary("sqlite3");
+    }
 
     b.installArtifact(exe);
 
