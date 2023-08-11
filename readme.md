@@ -4,7 +4,7 @@ Disclaimer: although the name includes 'mac' and this is built for Macs, this is
 
 ### Read before use
 
-macpaperd is still alpha software, and as such it can damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. By break, I mean that Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in macOS menubar) and run 'rm ~/Library/Application\ Support/desktoppicture.db && killall Dock'. Oh and wallpaper won't work while it's broken, and when you fix it via the above command all the spaces' wallpapers will be reset. That said, feel free to try it out; just don't come crying if you can't figure out why it's broken.
+macpaperd is still alpha software, and as such it can damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. By break, I mean that Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in macOS menubar) and run `rm ~/Library/Application\ Support/desktoppicture.db && killall Dock`. Oh and wallpaper won't work while it's broken, and when you fix it via the above command all the spaces' wallpapers will be reset. That said, feel free to try it out; just don't come crying if you can't figure out why it's broken.
 
 ## Building
 
@@ -45,17 +45,17 @@ SOFTWARE.
 
 #### TODO
 
-[ ] Configuration file
-[ ] Acquire space / display data using the same method as `yabai`
-[ ] Cycle through all desktops / spaces and (using AppleScript) set desktop image (just to make sure it is a local jpg and thus we can affect the space / desktop)
+- [ ] Configuration file
+- [ ] Acquire space / display data using the same method as `yabai`
+- [ ] Cycle through all desktops / spaces and (using AppleScript) set desktop image (just to make sure it is a local jpg and thus we can affect the space / desktop)
   - Only need to happen the first time
-[ ] Be daemon instead of just command
-[ ] Way more saftey checks
-[ ] Automatically detect changes to the relevant files
-[ ] Write up proper documentation of `desktoppicture.db`.
-[ ] Support different wallpapers on different desktops / spaces
-[ ] Cycling
-[ ] Support multiple displays:
+- [ ] Be daemon instead of just command
+- [ ] Way more saftey checks
+- [ ] Automatically detect changes to the relevant files
+- [ ] Write up proper documentation of `desktoppicture.db`.
+- [ ] Support different wallpapers on different desktops / spaces
+- [ ] Cycling
+- [ ] Support multiple displays:
    - `createDb` is fine
    - `copyFromOld` currently only copies one display and shows a warning, we'll just have to make a small change for that
    - `addData`, `insertPreference`, and `insertSpaceData` all need more thought to support multiple displays.
