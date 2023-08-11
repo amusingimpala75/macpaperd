@@ -1,0 +1,10 @@
+.{
+    .name = "macpaperd",
+    .version = "0.0.1",
+    .dependencies = .{
+        .sqlite = .{
+            .url = "https://github.com/vrischmann/zig-sqlite/archive/601df42c3a9a9cf4a6b76435293706a90a782fe2.tar.gz",
+            .hash = "12204ff89be57bd3300a1504224d55cd37876b33779419c1b510ab4f546d10e8fae5",
+        },
+    },
+}
