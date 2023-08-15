@@ -11,10 +11,12 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "macpaperd",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "src/macpaperd.zig" },
         .target = target,
         .optimize = optimize,
     });
+
+    exe.addCSourceFile(.{ .file = .{ .path = "src/apple.m" }, .flags = &[_][]const u8{} });
 
     const sqlite = b.dependency("sqlite", .{
         .target = target,
@@ -28,6 +30,11 @@ pub fn build(b: *std.Build) void {
     } else {
         exe.linkSystemLibrary("sqlite3");
     }
+
+    exe.addFrameworkPath(.{ .path = "/System/Library/PrivateFrameworks" });
+    exe.linkFramework("SkyLight");
+
+    exe.linkFramework("Carbon");
 
     b.installArtifact(exe);
 

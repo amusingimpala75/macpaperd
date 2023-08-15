@@ -1,3 +1,4 @@
+//    macpaperd.zig is a part of macpaperd.
 //    macpaperd is a wallpaper daemon for macOS
 //    Copyright (C) 2023 Luke Murray
 //
@@ -17,23 +18,59 @@
 const std = @import("std");
 const sqlite = @import("sqlite");
 
+const Display = @import("Display.zig");
+
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 const tmp_file = "/tmp/macpaperd.db";
 
 pub fn main() !void {
     const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
     _ = args.next();
-    const path = blk: while (args.next()) |arg| {
-        if (!std.mem.eql(u8, arg, "--set")) {
-            std.debug.print("Invalid arg: {s}\n", .{arg});
+    if (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--set")) {
+            if (args.next()) |path| {
+                try setWallpaper(allocator, path);
+            } else {
+                std.debug.print("Missing path arg for '--set'\n", .{});
+                unreachable;
+            }
+        } else if (std.mem.eql(u8, arg, "--displays")) {
+            try listDisplays(allocator);
+        } else {
+            std.debug.print("Unrecognized arg: {s}\n", .{arg});
             unreachable;
         }
-        break :blk args.next().?;
-    } else unreachable;
+    } else {
+        std.debug.print("Usage: macpaperd (--set [file] | --displays)\n", .{});
+        unreachable;
+    }
+}
 
+fn listDisplays(allocator: std.mem.Allocator) !void {
+    const displays = try Display.getDisplays(allocator);
+    defer {
+        for (displays) |*display| {
+            display.deinit();
+        }
+        allocator.free(displays);
+    }
+    for (displays, 1..) |display, i| {
+        std.debug.print("Display {d} (uuid: {s})\n", .{ i, display.uuid });
+        for (display.spaces, 1..) |space, j| {
+            std.debug.print("  Space {d} (uuid: {s}, is-fullscreen: {s})\n", .{
+                j,
+                space.uuid,
+                if (space.fullscreen) "true" else "false",
+            });
+        }
+    }
+}
+
+fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
     { // Validate path
         try std.fs.accessAbsolute(path, .{}); // exists
         if (!std.mem.eql(u8, ".png", path[path.len - 4 ..]) and
@@ -43,7 +80,7 @@ pub fn main() !void {
             unreachable;
         }
     }
-    std.fs.deleteFileAbsolute("/tmp/macpaperd.db") catch |err| {
+    std.fs.deleteFileAbsolute(tmp_file) catch |err| {
         if (err == error.FileNotFound) {} else return err;
     };
     var db = try createDb(); // prefs is complete (empty)
@@ -70,7 +107,7 @@ fn copyInNew(allocator: std.mem.Allocator) !void {
     const path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{home});
     defer allocator.free(path);
 
-    try std.fs.copyFileAbsolute("/tmp/macpaperd.db", path, .{});
+    try std.fs.copyFileAbsolute(tmp_file, path, .{});
 }
 
 fn backupOld(allocator: std.mem.Allocator) !void {
@@ -128,15 +165,14 @@ fn insertPreference(db: *sqlite.Db, cmd: []const u8, index: usize) !void {
 // Inserts into preferences and pictures, since those depend on looping through the spaces
 fn insertSpaceData(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
     const row_count: usize = blk: {
-        const extract = "SELECT space_uuid FROM spaces";
-        var statement = try db.prepare(extract);
-        defer statement.deinit();
-        break :blk (try statement.all(
-            struct { space_uuid: []const u8 },
-            allocator,
-            .{},
-            .{},
-        )).len;
+        const displays = try Display.getDisplays(allocator);
+        defer {
+            for (displays) |*display| {
+                display.deinit();
+            }
+            allocator.free(displays);
+        }
+        break :blk displays[0].spaces.len;
     };
     const insert_picture = "INSERT INTO pictures(space_id, display_id) VALUES(?, ?)";
     const insert_preference = "INSERT INTO preferences(key, data_id, picture_id) VALUES(?, ?, ?)";
@@ -160,62 +196,19 @@ fn insertSpaceData(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
 }
 
 fn copyFromOld(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
-    const home = std.os.getenv("HOME").?;
-    const file = try std.fmt.allocPrintZ(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{home});
-    defer allocator.free(file);
-    var old = try sqlite.Db.init(.{
-        .mode = .{ .File = file },
-        .open_flags = .{
-            .write = false,
-            .create = false,
-        },
-    });
-    defer old.deinit();
-
-    { // Copy Displays
-        const extract = "SELECT display_uuid FROM displays";
-        std.debug.print("{s}\n", .{extract});
-        var statement = try old.prepare(extract);
-        defer statement.deinit();
-        const rows = try statement.all(
-            struct { display_uuid: []const u8 },
-            allocator,
-            .{},
-            .{},
-        );
-        if (rows.len < 1) {
-            std.builtin.panic("Cannot copy desktop wallpaper if it has never been set\n", null, null);
-        } else {
-            std.debug.print("{s}\n", .{rows[0].display_uuid});
+    const displays = try Display.getDisplays(allocator);
+    defer {
+        for (displays) |*display| {
+            display.deinit();
         }
-        for (rows[1..]) |row| {
-            std.debug.print("warn: multiple displays not supported {s}\n", .{row.display_uuid});
-        }
-        const uuid = rows[0]; // TODO support > 1 display
-        const insert = "INSERT INTO displays(display_uuid) VALUES(?)";
-        std.debug.print("{s}\n", .{insert});
-        try db.execDynamic(insert, .{}, uuid);
+        allocator.free(displays);
     }
-
-    { // Copy Spaces
-        const extract = "SELECT space_uuid FROM spaces";
-        std.debug.print("{s}\n", .{extract});
-        var statement = try old.prepare(extract);
-        defer statement.deinit();
-        const rows = try statement.all(
-            struct { space_uuid: []const u8 },
-            allocator,
-            .{},
-            .{},
-        );
-        if (rows.len < 1) {
-            std.builtin.panic("Cannot copy desktop wallpaper if it has never been set\n", null, null);
-        }
-        const insert = "INSERT INTO spaces(space_uuid) VALUES(?)";
-        for (rows) |row| {
-            std.debug.print("{s}\n", .{row.space_uuid});
-            try db.execDynamic(insert, .{}, row);
-        }
+    if (displays.len > 1) {
+        std.debug.print("warn: multiple displays not supported at the moment: {d} displays\n", .{displays.len});
+    }
+    try db.execDynamic("INSERT INTO displays(display_uuid) VALUES(?)", .{}, .{ .display_uuid = displays[0].uuid });
+    for (displays[0].spaces) |space| {
+        try db.execDynamic("INSERT INTO spaces(space_uuid) VALUES(?)", .{}, .{ .space_uuid = space.uuid });
     }
 }
 
