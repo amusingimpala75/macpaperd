@@ -8,12 +8,12 @@ Disclaimer: although the name includes 'mac' and this is built for macOS, this i
 
 ## Dependencies
 
-`zig` >= 0.11.0 (`zig-master` not tested)
+`zig` >= 0.11.0 (`zig-master` not tested)  
 `macOS` >= 12 (only Monterey on M1 tested, other versions may work)
 
 ## Building
 
-The executable can be built with `zig build`, and the resulting executable can be found at `zig-out/bin/macpaperd`.
+The executable can be built with `zig build`, and the resulting executable can be found at `zig-out/bin/macpaperd`.  
 The `-Dbundle-sqlite` build option will bundle `zig-sqlite`'s sqlite3 instead of using the system installation, increasing binary size by about 6MB.
 
 ## Usage
