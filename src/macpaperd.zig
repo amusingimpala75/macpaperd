@@ -28,6 +28,16 @@ const db_filename = "desktoppicture.db";
 
 var home: [:0]const u8 = undefined;
 
+fn printUsage() void {
+    const usage =
+        \\Usage:
+        \\  macpaperd --set [file]  Set 'file' as the wallpaper. 'file' must be an absolute path.
+        \\  macpaperd --displays    List the connected displays and their associated spaces.
+        \\  macpaperd --help        Show this information.
+    ;
+    std.debug.print("{s}\n", .{usage});
+}
+
 pub fn main() !void {
     home = std.os.getenv("HOME").?;
     const allocator = gpa.allocator();
@@ -41,17 +51,20 @@ pub fn main() !void {
                 try setWallpaper(allocator, path);
             } else {
                 std.debug.print("Missing path arg for '--set'\n", .{});
-                unreachable;
+                std.process.exit(1);
             }
         } else if (std.mem.eql(u8, arg, "--displays")) {
             try listDisplays(allocator);
+        } else if (std.mem.eql(u8, arg, "--help")) {
+            printUsage();
         } else {
             std.debug.print("Unrecognized arg: {s}\n", .{arg});
-            unreachable;
+            printUsage();
+            std.process.exit(1);
         }
     } else {
-        std.debug.print("Usage: macpaperd (--set [file] | --displays)\n", .{});
-        unreachable;
+        printUsage();
+        std.process.exit(1);
     }
 }
 
@@ -81,8 +94,8 @@ fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
         if (!std.mem.eql(u8, ".png", path[path.len - 4 ..]) and
             !std.mem.eql(u8, ".jpg", path[path.len - 4 ..]))
         {
-            std.debug.print("Invalid image format: {s}\n", .{path[path.len - 6 ..]});
-            unreachable;
+            std.debug.print("Invalid image format: {s}\n", .{path[path.len - 4 ..]});
+            std.process.exit(1);
         }
     }
     std.fs.deleteFileAbsolute(tmp_file) catch |err| {

@@ -4,18 +4,25 @@ Disclaimer: although the name includes 'mac' and this is built for macOS, this i
 
 ### Read before use
 
-macpaperd is still alpha software, and as such it can damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. By break, I mean that Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in macOS menubar) and run `rm ~/Library/Application\ Support/desktoppicture.db && killall Dock`. Oh and wallpaper won't work while it's broken, and when you fix it via the above command all the spaces' wallpapers will be reset. That said, feel free to try it out; just don't come crying if you can't figure out why it's broken.
+`macpaperd` is still alpha software, and as such it can damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. By break, I mean that Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in macOS menubar) and run `rm ~/Library/Application\ Support/desktoppicture.db && killall Dock`. Oh and wallpaper won't work while it's broken, and when you fix it via the above command all the spaces' wallpapers will be reset. That said, feel free to try it out; just don't come crying if you can't figure out why it's broken.
 
 ## Dependencies
 
-`macpaperd` uses the `zig-sqlite` sqlite bindings in order to access databases. By default we link the executable to the system `sqlite3` installation, but with the compilation flag `-Dbundle-sqlite` we instead statically link the one provided with the bindings. It does increase the executable size by about 6Mb.
-`macpaperd` uses the official Zig package manager, and as such requires a version > 0.11.0. `zig-master` is not tested.
+`zig` >= 0.11.0 (`zig-master` not tested)
+`macOS` >= 12 (only Monterey on M1 tested, other versions may work)
 
 ## Building
 
 The executable can be built with `zig build`, and the resulting executable can be found at `zig-out/bin/macpaperd`.
+The `-Dbundle-sqlite` build option will bundle `zig-sqlite`'s sqlite3 instead of using the system installation, increasing binary size by about 6MB.
 
 ## Usage
+```
+Usage:
+  macpaperd --set [file]   Set 'file' as the wallpaper. 'file' must be an absolute path.
+  macpaperd --displays     List the connected displays and their associated spaces.
+  macpaperd --help         Show this info.
+```
 
 At the moment, macpaperd is a command line utility, and you can set the wallpaper with `macpaperd --set '/absolute/path/to/wallpaper.png'`. It only accecpts `.png` and `.jpg` at the moment, I still need to figure out other accepted formats (and if they require different database setups). Also, for those curious, the `--displays` command lists the displays, their UUIDs and spaces, and their spaces' UUIDs and whether-or-not they are fullscreen.
 
@@ -23,7 +30,17 @@ At the moment, macpaperd is a command line utility, and you can set the wallpape
 
 - [x] Create fake `desktoppicture.db` and swap it with the actual, killing `Dock.app` afterwords to change the wallpaper
 - [x] Acquire space / display data using the same method as `yabai`
+- [x] Support different desktop types:
+   - [x] Image Formats:
+      - [x] JPEG
+      - [x] PNG
+      - [ ] TIFF
+      - [ ] HEIC
+      - [ ] PICT
+   - [ ] Dynamic Wallpapers
+   - [ ] Colors
 - [ ] Support multiple displays. TODO:
+   - [ ] decode format changes
    - [x] `createDb` is fine
    - [ ] `copyFromOld` currently only copies one display and shows a warning, we'll just have to make a small change for that
    - [ ] `addData`, `insertPreference`, and `insertSpaceData` all need more thought to support multiple displays.
