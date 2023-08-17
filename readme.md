@@ -23,7 +23,6 @@ At the moment, macpaperd is a command line utility, and you can set the wallpape
 
 - [x] Create fake `desktoppicture.db` and swap it with the actual, killing `Dock.app` afterwords to change the wallpaper
 - [x] Acquire space / display data using the same method as `yabai`
-- [ ] Way more saftey checks
 - [ ] Support multiple displays. TODO:
    - [x] `createDb` is fine
    - [ ] `copyFromOld` currently only copies one display and shows a warning, we'll just have to make a small change for that

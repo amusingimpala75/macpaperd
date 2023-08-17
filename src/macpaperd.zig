@@ -24,7 +24,12 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 const tmp_file = "/tmp/macpaperd.db";
 
+const db_filename = "desktoppicture.db";
+
+var home: [:0]const u8 = undefined;
+
 pub fn main() !void {
+    home = std.os.getenv("HOME").?;
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
     var args = try std.process.argsWithAllocator(allocator);
@@ -103,7 +108,6 @@ fn restartDock(allocator: std.mem.Allocator) !void {
 }
 
 fn copyInNew(allocator: std.mem.Allocator) !void {
-    const home = std.os.getenv("HOME").?;
     const path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{home});
     defer allocator.free(path);
 
@@ -111,7 +115,6 @@ fn copyInNew(allocator: std.mem.Allocator) !void {
 }
 
 fn backupOld(allocator: std.mem.Allocator) !void {
-    const home = std.os.getenv("HOME").?;
     const dock_dir_path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock", .{home});
     defer allocator.free(dock_dir_path);
     var dock_dir = try std.fs.openDirAbsolute(dock_dir_path, .{});
@@ -128,14 +131,14 @@ fn backupOld(allocator: std.mem.Allocator) !void {
     var backup_dir = try dock_dir.openDir("backups", .{});
     defer backup_dir.close();
     if (!backup_already_existed) {
-        try dock_dir.copyFile("desktoppicture.db", backup_dir, "desktoppicture.db", .{});
+        try dock_dir.copyFile(db_filename, backup_dir, db_filename, .{});
     } else {
         var iterable: std.fs.IterableDir = .{ .dir = try dock_dir.openDirZ("backups", .{}, true) };
         defer iterable.close();
         const count = iterable.iterate().end_index + 1;
         const path = try std.fmt.allocPrint(allocator, "desktoppicture{d}.db", .{count});
         defer allocator.free(path);
-        try dock_dir.copyFile("desktoppicture.db", backup_dir, path, .{});
+        try dock_dir.copyFile(db_filename, backup_dir, path, .{});
     }
 }
 
