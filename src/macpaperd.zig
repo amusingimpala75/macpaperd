@@ -123,8 +123,7 @@ fn setColor(allocator: std.mem.Allocator, r: u8, g: u8, b: u8) !void {
     try copyFromOld(allocator, &db);
     try insertSpaceData(allocator, &db, .color);
     try addDataColor(&db, r, g, b);
-    try backupOld(allocator);
-    try copyInNew(allocator);
+    try replaceOldWithNew(allocator);
     try restartDock(allocator);
 }
 
@@ -152,8 +151,7 @@ fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
     try copyFromOld(allocator, &db); // displays and spaces are complete
     try insertSpaceData(allocator, &db, .file); // pictures and preferences are complete
     try addData(&db, path); // data is complete; DB done
-    try backupOld(allocator);
-    try copyInNew(allocator);
+    try replaceOldWithNew(allocator);
     try restartDock(allocator);
 }
 
@@ -166,39 +164,14 @@ fn restartDock(allocator: std.mem.Allocator) !void {
     assert(results.stderr.len == 0);
 }
 
-fn copyInNew(allocator: std.mem.Allocator) !void {
+fn replaceOldWithNew(allocator: std.mem.Allocator) !void {
     const path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{home});
     defer allocator.free(path);
 
-    try std.fs.copyFileAbsolute(tmp_file, path, .{});
-}
-
-fn backupOld(allocator: std.mem.Allocator) !void {
-    const dock_dir_path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock", .{home});
-    defer allocator.free(dock_dir_path);
-    var dock_dir = try std.fs.openDirAbsolute(dock_dir_path, .{});
-    defer dock_dir.close();
-    const backup_already_existed = blk: {
-        dock_dir.makeDir("backups") catch |err| {
-            if (err == error.PathAlreadyExists) {
-                break :blk true;
-            }
-            return err;
-        };
-        break :blk false;
+    std.fs.deleteFileAbsolute(path) catch |err| {
+        if (err != error.FileNotFound) return err;
     };
-    var backup_dir = try dock_dir.openDir("backups", .{});
-    defer backup_dir.close();
-    if (!backup_already_existed) {
-        try dock_dir.copyFile(db_filename, backup_dir, db_filename, .{});
-    } else {
-        var iterable: std.fs.IterableDir = .{ .dir = try dock_dir.openDirZ("backups", .{}, true) };
-        defer iterable.close();
-        const count = iterable.iterate().end_index + 1;
-        const path = try std.fmt.allocPrint(allocator, "desktoppicture{d}.db", .{count});
-        defer allocator.free(path);
-        try dock_dir.copyFile(db_filename, backup_dir, path, .{});
-    }
+    try std.fs.copyFileAbsolute(tmp_file, path, .{});
 }
 
 fn addData(db: *sqlite.Db, file_path: []const u8) !void {
