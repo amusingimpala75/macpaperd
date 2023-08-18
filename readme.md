@@ -34,12 +34,11 @@ At the moment, macpaperd is a command line utility, and you can set the wallpape
 - [x] Acquire space / display data using the same method as `yabai`
 - [x] Support different desktop types:
    - [x] Colors
-   - [ ] Image Formats:
+   - [x] Image Formats:
       - [x] JPEG
       - [x] PNG
-      - [ ] TIFF
-      - [ ] HEIC
-      - [ ] PICT
+      - [x] TIFF
+      - [x] HEIC
    - [ ] Dynamic Wallpapers
 - [ ] Support multiple displays. TODO:
    - [ ] decode format changes

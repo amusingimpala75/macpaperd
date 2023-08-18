@@ -131,15 +131,10 @@ fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
     { // Validate path
         try std.fs.accessAbsolute(path, .{}); // exists
         if (!std.mem.eql(u8, ".png", path[path.len - 4 ..]) and
-            !std.mem.eql(u8, ".jpg", path[path.len - 4 ..]))
+            !std.mem.eql(u8, ".jpg", path[path.len - 4 ..]) and
+            !std.mem.eql(u8, ".tiff", path[path.len - 5 ..]) and
+            !std.mem.eql(u8, ".heic", path[path.len - 5 ..]))
         {
-            std.debug.print("Invalid image format: {s}\n", .{path[path.len - 4 ..]});
-            if (std.mem.eql(u8, ".tiff", path[path.len - 5 ..]) or
-                std.mem.eql(u8, ".heic", path[path.len - 5 ..]) or
-                std.mem.eql(u8, ".pict", path[path.len - 5 ..]))
-            {
-                std.debug.print("Support is coming in a future version\n", .{});
-            }
             std.process.exit(1);
         }
     }
