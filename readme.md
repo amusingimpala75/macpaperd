@@ -1,5 +1,7 @@
 # macpaperd
 
+[![](https://badgers.space/github/license/amusingimapal75/macpaperd)](./COPYING)
+
 Disclaimer: although the name includes 'mac' and this is built for macOS, this is not sponsored or run by Apple, and I am not affiliated with Apple.
 
 ### Read before use
@@ -17,16 +19,15 @@ The executable can be built with `zig build`, and the resulting executable can b
 The `-Dbundle-sqlite` build option will bundle `zig-sqlite`'s sqlite3 instead of using the system installation, increasing binary size by about 6MB.
 
 ## Usage
+
 ```
 Usage:
-  macpaperd --set [file]   Set 'file' as the wallpaper. 'file' must be an absolute path.
+  macpaperd --set [file]          Set 'file' as the wallpaper. 'file' must be an absolute path.
   macpaperd --color [hex color]   Set 'hex color' as the background color. 'hex color' must be a
                                   valid, 6 character hexidecimal number WITHOUT the '0x' prefix.
-  macpaperd --displays     List the connected displays and their associated spaces.
-  macpaperd --help         Show this info.
+  macpaperd --displays            List the connected displays and their associated spaces.
+  macpaperd --help                Show this info.
 ```
-
-At the moment, macpaperd is a command line utility, and you can set the wallpaper with `macpaperd --set '/absolute/path/to/wallpaper.png'`. It only accecpts `.png` and `.jpg` at the moment, I still need to figure out other accepted formats (and if they require different database setups). Also, for those curious, the `--displays` command lists the displays, their UUIDs and spaces, and their spaces' UUIDs and whether-or-not they are fullscreen.
 
 #### Features \ TODO
 
@@ -43,8 +44,8 @@ At the moment, macpaperd is a command line utility, and you can set the wallpape
 - [ ] Support multiple displays. TODO:
    - [ ] decode format changes
    - [x] `createDb` is fine
-   - [ ] `copyFromOld` currently only copies one display and shows a warning, we'll just have to make a small change for that
-   - [ ] `addData`, `insertPreference`, and `insertSpaceData` all need more thought to support multiple displays.
+   - [ ] `fillDisplaysAndSpaces` currently only copies one display and shows a warning, we'll just have to make a small change for that
+   - [ ] `fillPicturesPreferences` and `fill[x]Data` will need more thought to support multiple displays.
 - [ ] Be daemon instead of just a command
 - [ ] Configuration file
 - [ ] Automatically detect changes to the relevant files
@@ -57,12 +58,16 @@ At the moment, macpaperd is a command line utility, and you can set the wallpape
    - [ ] Stretch (scale until one edge reaches screen edge, then stretch along other axis)
    - [ ] Tile (repeat image vertically and horizontally)
 
+### `desktoppicture.db` Documentation
+
+[The documentation for `desktoppicture.db` can be found here](./doc/desktoppicture_db.md)
+
 ### Licensing and attributions
 
 The `macpaperd` source code is released under the GPLv3, which can be found at `./COPYING`
 The documenation found under the `docs` folder is licensed under the Creative Commons Attribution-ShareAlike 4.0 International, which can be found at `./CC-BY-SA-4.0.txt`
 
-Additionally, `macpaperd` uses the `zig-sqlite` project by Vincent Rischmann:
+Additionally, `macpaperd` uses the [`zig-sqlite`](https://github.com/vrischmann/zig-sqlite) project by Vincent Rischmann:
 ```
 MIT License
 
