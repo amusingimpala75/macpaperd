@@ -20,6 +20,8 @@ The `-Dbundle-sqlite` build option will bundle `zig-sqlite`'s sqlite3 instead of
 ```
 Usage:
   macpaperd --set [file]   Set 'file' as the wallpaper. 'file' must be an absolute path.
+  macpaperd --color [hex color]   Set 'hex color' as the background color. 'hex color' must be a
+                                  valid, 6 character hexidecimal number WITHOUT the '0x' prefix.
   macpaperd --displays     List the connected displays and their associated spaces.
   macpaperd --help         Show this info.
 ```
@@ -31,14 +33,14 @@ At the moment, macpaperd is a command line utility, and you can set the wallpape
 - [x] Create fake `desktoppicture.db` and swap it with the actual, killing `Dock.app` afterwords to change the wallpaper
 - [x] Acquire space / display data using the same method as `yabai`
 - [x] Support different desktop types:
-   - [x] Image Formats:
+   - [x] Colors
+   - [ ] Image Formats:
       - [x] JPEG
       - [x] PNG
       - [ ] TIFF
       - [ ] HEIC
       - [ ] PICT
    - [ ] Dynamic Wallpapers
-   - [ ] Colors
 - [ ] Support multiple displays. TODO:
    - [ ] decode format changes
    - [x] `createDb` is fine
@@ -50,6 +52,11 @@ At the moment, macpaperd is a command line utility, and you can set the wallpape
 - [ ] Write up proper documentation of `desktoppicture.db`.
 - [ ] Cycling
 - [ ] Support different wallpapers on different desktops / spaces
+- [ ] Different image fit types:
+   - [x] Fill (scale until both edges reach or extend past edge of screen)
+   - [ ] Fit (until both edges reach or are within screen, using background color where necessary)
+   - [ ] Stretch (scale until one edge reaches screen edge, then stretch along other axis)
+   - [ ] Tile (repeat image vertically and horizontally)
 
 ### Licensing and attributions
 

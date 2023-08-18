@@ -73,12 +73,12 @@ pub fn getDisplays(allocator: std.mem.Allocator) Error![]const Display {
 }
 
 allocator: std.mem.Allocator,
-uuid: []const u8,
+uuid: [:0]const u8,
 spaces: []const Space,
 
 const InitError = error{DisplayInitError} || std.mem.Allocator.Error;
 
-pub fn init(allocator: std.mem.Allocator, uuid: []const u8) InitError!Display {
+pub fn init(allocator: std.mem.Allocator, uuid: [:0]const u8) InitError!Display {
     const skylight_connection = SLSMainConnectionID();
     const displays_spaces_ref = SLSCopyManagedDisplaySpaces(skylight_connection);
     if (displays_spaces_ref == null) {
@@ -163,7 +163,7 @@ pub fn deinit(self: Display) void {
 
 pub const Space = struct {
     allocator: std.mem.Allocator,
-    uuid: []const u8,
+    uuid: [:0]const u8,
     fullscreen: bool,
 
     const Error = error{SpaceInitError} || std.mem.Allocator.Error;
@@ -196,7 +196,7 @@ pub const Space = struct {
 const UUIDError = error{CannotGetUUID} || std.mem.Allocator.Error;
 
 // Requires that uuid_ref is non-null
-fn UUIDToString(allocator: std.mem.Allocator, uuid_ref: apple.CFUUIDRef) UUIDError![]const u8 {
+fn UUIDToString(allocator: std.mem.Allocator, uuid_ref: apple.CFUUIDRef) UUIDError![:0]const u8 {
     const uuid_str = apple.CFUUIDCreateString(null, uuid_ref);
     if (uuid_str == null) {
         return UUIDError.CannotGetUUID;
@@ -213,10 +213,10 @@ fn UUIDToString(allocator: std.mem.Allocator, uuid_ref: apple.CFUUIDRef) UUIDErr
 const StringError = error{CannotGetString} || std.mem.Allocator.Error;
 
 // Requires that str_ref is non-null
-fn CFStringRefToString(allocator: std.mem.Allocator, str_ref: apple.CFStringRef) StringError![]const u8 {
+fn CFStringRefToString(allocator: std.mem.Allocator, str_ref: apple.CFStringRef) StringError![:0]const u8 {
     const len = apple.CFStringGetLength(str_ref);
-    var str = try allocator.alloc(u8, @intCast(len + 1));
-    if (apple.CFStringGetCString(str_ref, @ptrCast(str), @intCast(str.len), apple.kCFStringEncodingASCII) != 0) {
+    var str = try allocator.allocSentinel(u8, @intCast(len), 0);
+    if (apple.CFStringGetCString(str_ref, @ptrCast(str), @intCast(str.len + 1), apple.kCFStringEncodingASCII) != 0) {
         return str;
     }
     return StringError.CannotGetString;

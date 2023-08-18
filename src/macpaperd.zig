@@ -31,9 +31,11 @@ var home: [:0]const u8 = undefined;
 fn printUsage() void {
     const usage =
         \\Usage:
-        \\  macpaperd --set [file]  Set 'file' as the wallpaper. 'file' must be an absolute path.
-        \\  macpaperd --displays    List the connected displays and their associated spaces.
-        \\  macpaperd --help        Show this information.
+        \\  macpaperd --set [file]         Set 'file' as the wallpaper. 'file' must be an absolute path.
+        \\  macpaperd --color [hex color]  Set 'hex color' as the background color. 'hex color' must be a
+        \\                                 valid, 6 character hexidecimal number WITHOUT the '0x' prefix.
+        \\  macpaperd --displays           List the connected displays and their associated spaces.
+        \\  macpaperd --help               Show this information.
     ;
     std.debug.print("{s}\n", .{usage});
 }
@@ -44,7 +46,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
-    _ = args.next();
+    _ = args.next(); // Unix first arg being name of executable
     if (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--set")) {
             if (args.next()) |path| {
@@ -55,6 +57,24 @@ pub fn main() !void {
             }
         } else if (std.mem.eql(u8, arg, "--displays")) {
             try listDisplays(allocator);
+        } else if (std.mem.eql(u8, arg, "--color")) {
+            if (args.next()) |str| {
+                const col: u24 = std.fmt.parseInt(u24, str, 16) catch |err| {
+                    if (err == error.Overflow or err == error.InvalidCharacter) {
+                        std.debug.print("Invalid hex color: {s}\n", .{str});
+                        std.process.exit(1);
+                    }
+                    unreachable;
+                };
+                try setColor(
+                    allocator,
+                    @intCast((col & 0xFF0000) >> 16),
+                    @intCast((col & 0x00FF00) >> 8),
+                    @intCast((col & 0x0000FF)),
+                );
+            } else {
+                std.debug.print("Missing color arg for '--color'\n", .{});
+            }
         } else if (std.mem.eql(u8, arg, "--help")) {
             printUsage();
         } else {
@@ -88,6 +108,26 @@ fn listDisplays(allocator: std.mem.Allocator) !void {
     }
 }
 
+const WallpaperType = enum {
+    file,
+    color,
+};
+
+fn setColor(allocator: std.mem.Allocator, r: u8, g: u8, b: u8) !void {
+    std.debug.print("Setting wallpaper to color r: {d}, g: {d}, b: {d}\n", .{ r, g, b });
+    std.fs.deleteFileAbsolute(tmp_file) catch |err| {
+        if (err == error.FileNotFound) {} else return err;
+    };
+    var db = try createDb();
+    defer db.deinit();
+    try copyFromOld(allocator, &db);
+    try insertSpaceData(allocator, &db, .color);
+    try addDataColor(&db, r, g, b);
+    try backupOld(allocator);
+    try copyInNew(allocator);
+    try restartDock(allocator);
+}
+
 fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
     { // Validate path
         try std.fs.accessAbsolute(path, .{}); // exists
@@ -95,6 +135,12 @@ fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
             !std.mem.eql(u8, ".jpg", path[path.len - 4 ..]))
         {
             std.debug.print("Invalid image format: {s}\n", .{path[path.len - 4 ..]});
+            if (std.mem.eql(u8, ".tiff", path[path.len - 5 ..]) or
+                std.mem.eql(u8, ".heic", path[path.len - 5 ..]) or
+                std.mem.eql(u8, ".pict", path[path.len - 5 ..]))
+            {
+                std.debug.print("Support is coming in a future version\n", .{});
+            }
             std.process.exit(1);
         }
     }
@@ -104,7 +150,7 @@ fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
     var db = try createDb(); // prefs is complete (empty)
     defer db.deinit();
     try copyFromOld(allocator, &db); // displays and spaces are complete
-    try insertSpaceData(allocator, &db); // pictures and preferences are complete
+    try insertSpaceData(allocator, &db, .file); // pictures and preferences are complete
     try addData(&db, path); // data is complete; DB done
     try backupOld(allocator);
     try copyInNew(allocator);
@@ -172,14 +218,36 @@ fn addData(db: *sqlite.Db, file_path: []const u8) !void {
     try db.execDynamic(insert, .{}, .{ .value = file_path });
 }
 
+fn addDataColor(db: *sqlite.Db, r: u8, g: u8, b: u8) !void {
+    const insert = "INSERT INTO data(value) VALUES(?)";
+    std.debug.print("{s}\n", .{insert});
+    try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, "/System/Library/Desktop Pictures/Solid Colors") });
+    try db.execDynamic(insert, .{}, .{ .value = @as(usize, 0) });
+    try db.execDynamic(insert, .{}, .{ .value = @as(usize, 1) });
+    try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, "/System/Library/PreferencePanes/DesktopScreenEffectsPref.prefPane/Contents/Resources/DesktopPictures.prefPane/Contents/Resources/Transparent.tiff") });
+    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt(r)) / 255.0 });
+    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt(g)) / 255.0 });
+    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt(b)) / 255.0 });
+}
+
 fn insertPreference(db: *sqlite.Db, cmd: []const u8, index: usize) !void {
     try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 10), .data_id = @as(usize, 1), .picture_id = index });
     try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 20), .data_id = @as(usize, 2), .picture_id = index });
     try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 1), .data_id = @as(usize, 3), .picture_id = index });
 }
 
+fn insertPreferenceColor(db: *sqlite.Db, cmd: []const u8, index: usize) !void {
+    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 15), .data_id = @as(usize, 3), .picture_id = index });
+    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 1), .data_id = @as(usize, 4), .picture_id = index });
+    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 3), .data_id = @as(usize, 5), .picture_id = index });
+    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 4), .data_id = @as(usize, 6), .picture_id = index });
+    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 5), .data_id = @as(usize, 7), .picture_id = index });
+    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 10), .data_id = @as(usize, 1), .picture_id = index });
+    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 20), .data_id = @as(usize, 2), .picture_id = index });
+}
+
 // Inserts into preferences and pictures, since those depend on looping through the spaces
-fn insertSpaceData(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
+fn insertSpaceData(allocator: std.mem.Allocator, db: *sqlite.Db, wallpaper_type: WallpaperType) !void {
     const row_count: usize = blk: {
         const displays = try Display.getDisplays(allocator);
         defer {
@@ -198,17 +266,22 @@ fn insertSpaceData(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = null });
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
 
-    try insertPreference(db, insert_preference, 1);
-    try insertPreference(db, insert_preference, 2);
+    const insert_function: *const fn (*sqlite.Db, []const u8, usize) anyerror!void = switch (wallpaper_type) {
+        .file => insertPreference,
+        .color => insertPreferenceColor,
+    };
+
+    try insert_function(db, insert_preference, 1);
+    try insert_function(db, insert_preference, 2);
 
     for (1..row_count + 1) |i| {
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = 1 });
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = null });
-        try insertPreference(db, insert_preference, 2 * (i - 1) + 2 + 1);
-        try insertPreference(db, insert_preference, 2 * (i - 1) + 2 + 2);
+        try insert_function(db, insert_preference, 2 * (i - 1) + 2 + 1);
+        try insert_function(db, insert_preference, 2 * (i - 1) + 2 + 2);
     }
     std.debug.print("Added {d} rows to pictures\n", .{(row_count + 1) * 2});
-    std.debug.print("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * 3});
+    std.debug.print("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper_type == .file) 3 else 7)});
 }
 
 fn copyFromOld(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
@@ -222,9 +295,9 @@ fn copyFromOld(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
     if (displays.len > 1) {
         std.debug.print("warn: multiple displays not supported at the moment: {d} displays\n", .{displays.len});
     }
-    try db.execDynamic("INSERT INTO displays(display_uuid) VALUES(?)", .{}, .{ .display_uuid = displays[0].uuid });
-    for (displays[0].spaces) |space| {
-        try db.execDynamic("INSERT INTO spaces(space_uuid) VALUES(?)", .{}, .{ .space_uuid = space.uuid });
+    try db.exec("INSERT INTO displays(display_uuid) VALUES(?)", .{}, .{displays[0].uuid});
+    for (displays[0].spaces) |*space| {
+        try db.exec("INSERT INTO spaces(space_uuid) VALUES(?)", .{}, .{space.uuid});
     }
 }
 

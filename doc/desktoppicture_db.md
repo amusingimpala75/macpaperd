@@ -24,11 +24,11 @@ Lastly it contains some triggers for deletion to help cleanup data strewn across
 
 #### `displays`
 
-The `displays` table contains a list of the uuids for each display that has had the wallpaper configured for at least one if it's spaces. A list of the currently connected displays (including the uuids) can be retrieved using the `yabai` window manager (`yabai -m query --displays`).
+The `displays` table contains a list of the UUIDs for each display that has had the wallpaper configured for at least one if it's spaces. A list of the currently connected displays (including the UUIDs) can be retrieved using the `CGGetActiveDisplayList` function found in the `Carbon` headers.
 
 #### `spaces`
 
-Like the `displays` table, the `spaces` table contains a list of the uuids of each space, regardless of display, that has had it's wallpaper configured. A list of the current spaces (regardless of if it is native fullscreen, and thus no wallpaper, or not) can be retrived using the `yabai` window manager (`yabai -m query --spaces`).
+Like the `displays` table, the `spaces` table contains a list of the UUIDs of each space, regardless of display, that has had it's wallpaper configured. Using the internal SkyLight function `SLSCopyManagedDisplaySpaces`, a Display's UUID can be used to find the list of spaces associated with the display, and `SLSSpaceCopyName` can retrieve the space's UUID.
 
 #### `prefs`
 
@@ -36,7 +36,7 @@ Oddly enough, I have only seen this table empty. Granted, I do not use desktop i
 
 #### `data`
 
-The `data` tables can contain one of three types for a given index: firstly, it can be a number, for some unknown purpose (maybe to distinguish the two types of files?). Next, it can be a path to a folder containing wallpapers (either current or past). Lastly, it can be a path to a wallpaper, or just the file name.
+Generaly dumping place for data that is used in the preferences table. This consists of file and folder paths, unsigned integers, and decimals.
 
 #### `pictures`
 
@@ -44,4 +44,12 @@ The `data` tables can contain one of three types for a given index: firstly, it 
 
 #### `preferences`
 
-// TODO
+Each picture entry will have keys and values associated with it. The following keys are valid:
+- '1': index into the `data` table that denotes the picture's wallpaper file.
+- '10': index into the `data` table that denotes the picture's wallpaper's folder.
+- '20': index into the `data` table that, at least so far, is '0'.
+Those three are always present, even if the background is just a solid color (in that case the folder is `/System/Library/Desktop Pictures/Solid Colors` and the file is `/System/Library/PreferencePanes/DesktopScreenEffectsPref.prefPane/Contents/Resources/DesktopPictures.prefPane/Contents/Resources/Transparent.tiff`; I know, a mouthful).
+- '15': when present, indicates a background color should be drawn. The value it points to is always '3' regardless of index (maybe to interpret the colorspace?)
+- '3', '4', '5': indices into the `data` tables to denote R, G, and B (respectively) for the background color
+
+No doubt since cycling and different fit method exist, there are more. But those that are currently used by `macpaperd` are those above.
