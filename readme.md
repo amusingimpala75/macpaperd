@@ -1,6 +1,6 @@
 # macpaperd
 
-[![](https://badgers.space/github/license/amusingimapal75/macpaperd)](./COPYING)
+[![](https://badgers.space/github/license/amusingimpala75/macpaperd)](./COPYING)
 
 Disclaimer: although the name includes 'mac' and this is built for macOS, this is not sponsored or run by Apple, and I am not affiliated with Apple.
 
