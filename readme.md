@@ -28,10 +28,10 @@ Usage:
 
 At the moment, macpaperd is a command line utility, and you can set the wallpaper with `macpaperd --set '/absolute/path/to/wallpaper.png'`. It only accecpts `.png` and `.jpg` at the moment, I still need to figure out other accepted formats (and if they require different database setups). Also, for those curious, the `--displays` command lists the displays, their UUIDs and spaces, and their spaces' UUIDs and whether-or-not they are fullscreen.
 
-#### Features
+#### Features \ TODO
 
 - [x] Create fake `desktoppicture.db` and swap it with the actual, killing `Dock.app` afterwords to change the wallpaper
-- [x] Acquire space / display data using the same method as `yabai`
+- [x] Acquire space / display data using the same method as `yabai`, allowing a fresh installation without any other configuration required.
 - [x] Support different desktop types:
    - [x] Colors
    - [x] Image Formats:
@@ -45,7 +45,7 @@ At the moment, macpaperd is a command line utility, and you can set the wallpape
    - [x] `createDb` is fine
    - [ ] `copyFromOld` currently only copies one display and shows a warning, we'll just have to make a small change for that
    - [ ] `addData`, `insertPreference`, and `insertSpaceData` all need more thought to support multiple displays.
-- [ ] Be daemon instead of just command
+- [ ] Be daemon instead of just a command
 - [ ] Configuration file
 - [ ] Automatically detect changes to the relevant files
 - [ ] Write up proper documentation of `desktoppicture.db`.
