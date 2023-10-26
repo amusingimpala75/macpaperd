@@ -61,7 +61,7 @@ pub fn getDisplays(allocator: std.mem.Allocator) Error![]const Display {
         const display = Display.initFromDID(allocator, id) catch |err| {
             switch (err) {
                 InitError.DisplayInitError => {
-                    std.debug.print("Error retrieving display {d} (id: {d})\n", .{ i, id });
+                    std.debug.print("Error retrieving display {d} (id: {d}), skipping.\n", .{ i, id });
                     continue;
                 },
                 else => |e| return e,
