@@ -245,20 +245,31 @@ fn fillColorData(db: *sqlite.Db, r: u8, g: u8, b: u8) !void {
     try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt(b)) / 255.0 });
 }
 
-fn fillFilePreference(db: *sqlite.Db, cmd: []const u8, index: usize) !void {
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 10), .data_id = @as(usize, 1), .picture_id = index });
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 20), .data_id = @as(usize, 2), .picture_id = index });
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 1), .data_id = @as(usize, 3), .picture_id = index });
-}
+const Preference = struct {
+    key: u8,
+    data_id: u8,
+};
 
-fn fillColorPreference(db: *sqlite.Db, cmd: []const u8, index: usize) !void {
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 15), .data_id = @as(usize, 3), .picture_id = index });
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 1), .data_id = @as(usize, 4), .picture_id = index });
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 3), .data_id = @as(usize, 5), .picture_id = index });
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 4), .data_id = @as(usize, 6), .picture_id = index });
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 5), .data_id = @as(usize, 7), .picture_id = index });
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 10), .data_id = @as(usize, 1), .picture_id = index });
-    try db.execDynamic(cmd, .{}, .{ .key = @as(usize, 20), .data_id = @as(usize, 2), .picture_id = index });
+const file_preferences = [_]Preference{
+    Preference{ .key = 10, .data_id = 1 },
+    Preference{ .key = 20, .data_id = 2 },
+    Preference{ .key = 1, .data_id = 3 },
+};
+
+const color_preferences = [_]Preference{
+    Preference{ .key = 15, .data_id = 3 },
+    Preference{ .key = 1, .data_id = 4 },
+    Preference{ .key = 3, .data_id = 5 },
+    Preference{ .key = 4, .data_id = 6 },
+    Preference{ .key = 5, .data_id = 7 },
+    Preference{ .key = 10, .data_id = 1 },
+    Preference{ .key = 20, .data_id = 2 },
+};
+
+fn fillPreference(db: *sqlite.Db, cmd: []const u8, index: usize, preferences: []const Preference) !void {
+    for (preferences) |*pref| {
+        try db.execDynamic(cmd, .{}, .{ .key = @as(usize, pref.key), .data_id = @as(usize, pref.data_id), .picture_id = index });
+    }
 }
 
 // Inserts into preferences and pictures, since those depend on looping through the spaces
@@ -281,19 +292,19 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpap
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = null });
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
 
-    const insert_function: *const fn (*sqlite.Db, []const u8, usize) anyerror!void = switch (wallpaper_type) {
-        .file => fillFilePreference,
-        .color => fillColorPreference,
+    const pref: []const Preference = switch (wallpaper_type) {
+        .file => &file_preferences,
+        .color => &color_preferences,
     };
 
-    try insert_function(db, insert_preference, 1);
-    try insert_function(db, insert_preference, 2);
+    try fillPreference(db, insert_preference, 1, pref);
+    try fillPreference(db, insert_preference, 2, pref);
 
     for (1..row_count + 1) |i| {
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = 1 });
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = null });
-        try insert_function(db, insert_preference, 2 * (i - 1) + 2 + 1);
-        try insert_function(db, insert_preference, 2 * (i - 1) + 2 + 2);
+        try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 1, pref);
+        try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 2, pref);
     }
     std.debug.print("Added {d} rows to pictures\n", .{(row_count + 1) * 2});
     std.debug.print("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper_type == .file) 3 else 7)});
