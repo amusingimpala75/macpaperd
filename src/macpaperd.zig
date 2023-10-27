@@ -56,6 +56,14 @@ const Args = struct {
     }
 };
 
+var print_debug_messages = false;
+
+fn debug_print(msg: []const u8, args: anytype) void {
+    if (print_debug_messages) {
+        std.debug.print(msg, args);
+    }
+}
+
 fn parseArgs(allocator: std.mem.Allocator) !Args {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
@@ -167,7 +175,7 @@ const WallpaperType = enum {
 };
 
 fn setColor(allocator: std.mem.Allocator, r: u8, g: u8, b: u8) !void {
-    std.debug.print("Setting wallpaper to color r: {d}, g: {d}, b: {d}\n", .{ r, g, b });
+    debug_print("Setting wallpaper to color r: {d}, g: {d}, b: {d}\n", .{ r, g, b });
     std.fs.deleteFileAbsolute(tmp_file) catch |err| {
         if (err == error.FileNotFound) {} else return err;
     };
@@ -233,7 +241,7 @@ fn fillFileData(db: *sqlite.Db, file_path: []const u8) !void {
         }
     };
     const insert = "INSERT INTO data(value) VALUES(?)";
-    std.debug.print("{s}\n", .{insert});
+    debug_print("{s}\n", .{insert});
     try db.execDynamic(insert, .{}, .{ .value = folder });
     try db.execDynamic(insert, .{}, .{ .value = @as(usize, 0) });
     try db.execDynamic(insert, .{}, .{ .value = file_path });
@@ -241,7 +249,7 @@ fn fillFileData(db: *sqlite.Db, file_path: []const u8) !void {
 
 fn fillColorData(db: *sqlite.Db, r: u8, g: u8, b: u8) !void {
     const insert = "INSERT INTO data(value) VALUES(?)";
-    std.debug.print("{s}\n", .{insert});
+    debug_print("{s}\n", .{insert});
     try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, "/System/Library/Desktop Pictures/Solid Colors") });
     try db.execDynamic(insert, .{}, .{ .value = @as(usize, 0) });
     try db.execDynamic(insert, .{}, .{ .value = @as(usize, 1) });
@@ -292,8 +300,8 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpap
     };
     const insert_picture = "INSERT INTO pictures(space_id, display_id) VALUES(?, ?)";
     const insert_preference = "INSERT INTO preferences(key, data_id, picture_id) VALUES(?, ?, ?)";
-    std.debug.print("{s}\n", .{insert_picture});
-    std.debug.print("{s}\n", .{insert_preference});
+    debug_print("{s}\n", .{insert_picture});
+    debug_print("{s}\n", .{insert_preference});
 
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = null });
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
@@ -312,8 +320,8 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpap
         try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 1, pref);
         try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 2, pref);
     }
-    std.debug.print("Added {d} rows to pictures\n", .{(row_count + 1) * 2});
-    std.debug.print("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper_type == .file) 3 else 7)});
+    debug_print("Added {d} rows to pictures\n", .{(row_count + 1) * 2});
+    debug_print("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper_type == .file) 3 else 7)});
 }
 
 fn fillDisplaysAndSpaces(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
@@ -361,7 +369,7 @@ fn createDb() !sqlite.Db {
 
         inline for (0..tables.len / stride) |i| {
             const filled = std.fmt.comptimePrint(create_table, .{ tables[stride * i], tables[stride * i + 1] });
-            std.debug.print("{s}\n", .{filled});
+            debug_print("{s}\n", .{filled});
             try db.exec(filled, .{}, .{});
         }
     }
@@ -385,7 +393,7 @@ fn createDb() !sqlite.Db {
 
         inline for (0..indices.len / stride) |i| {
             const filled = std.fmt.comptimePrint(create_index, .{ indices[stride * i], indices[stride * i + 1], indices[stride * i + 2] });
-            std.debug.print("{s}\n", .{filled});
+            debug_print("{s}\n", .{filled});
             try db.exec(filled, .{}, .{});
         }
     }
@@ -407,7 +415,7 @@ fn createDb() !sqlite.Db {
 
         inline for (0..triggers.len / stride) |i| {
             const filled = std.fmt.comptimePrint(create_trigger, .{ triggers[stride * i], triggers[stride * i + 1], triggers[stride * i + 2] });
-            std.debug.print("{s}\n", .{filled});
+            debug_print("{s}\n", .{filled});
             try db.exec(filled, .{}, .{});
         }
     }
