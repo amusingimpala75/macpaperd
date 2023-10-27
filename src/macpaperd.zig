@@ -54,61 +54,61 @@ const Args = struct {
             self.allocator.free(self.action.image);
         }
     }
-};
 
-fn parseArgs(allocator: std.mem.Allocator) !Args {
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    fn init(allocator: std.mem.Allocator) !Args {
+        var args = try std.process.argsWithAllocator(allocator);
+        defer args.deinit();
 
-    _ = args.next(); // first arg is the name of the executable
+        _ = args.next(); // first arg is the name of the executable
 
-    var ret: ?Args = null;
+        var ret: ?Args = null;
 
-    if (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--displays")) {
-            ret = .{ .allocator = allocator, .action = .displays };
-        } else if (std.mem.eql(u8, arg, "--set")) {
-            if (args.next()) |image| {
-                ret = .{ .allocator = allocator, .action = .{ .image = try allocator.alloc(u8, image.len) } };
-                std.mem.copy(u8, ret.?.action.image, image);
-            } else {
-                return error.MissingArgumentSet;
+        if (args.next()) |arg| {
+            if (std.mem.eql(u8, arg, "--displays")) {
+                ret = .{ .allocator = allocator, .action = .displays };
+            } else if (std.mem.eql(u8, arg, "--set")) {
+                if (args.next()) |image| {
+                    ret = .{ .allocator = allocator, .action = .{ .image = try allocator.alloc(u8, image.len) } };
+                    std.mem.copy(u8, ret.?.action.image, image);
+                } else {
+                    return error.MissingArgumentSet;
+                }
+            } else if (std.mem.eql(u8, arg, "--color")) {
+                if (args.next()) |color| {
+                    const col: u24 = std.fmt.parseInt(u24, color, 16) catch |err| {
+                        if (err == error.Overflow or err == error.InvalidCharacter) {
+                            std.debug.print("Invalid hex color: {s}\n", .{color});
+                            std.process.exit(1);
+                        }
+                        unreachable;
+                    };
+                    ret = .{ .allocator = allocator, .action = .{ .color = col } };
+                } else {
+                    return error.MissingArgumentColor;
+                }
+            } else if (std.mem.eql(u8, arg, "--help")) {
+                ret = .{ .allocator = allocator, .action = .print_usage };
             }
-        } else if (std.mem.eql(u8, arg, "--color")) {
-            if (args.next()) |color| {
-                const col: u24 = std.fmt.parseInt(u24, color, 16) catch |err| {
-                    if (err == error.Overflow or err == error.InvalidCharacter) {
-                        std.debug.print("Invalid hex color: {s}\n", .{color});
-                        std.process.exit(1);
-                    }
-                    unreachable;
-                };
-                ret = .{ .allocator = allocator, .action = .{ .color = col } };
-            } else {
-                return error.MissingArgumentColor;
-            }
-        } else if (std.mem.eql(u8, arg, "--help")) {
-            ret = .{ .allocator = allocator, .action = .print_usage };
         }
-    }
 
-    while (args.next()) |arg| {
-        std.debug.print("Unused arg: {s}\n", .{arg});
-    }
+        while (args.next()) |arg| {
+            std.debug.print("Unused arg: {s}\n", .{arg});
+        }
 
-    if (ret == null) {
-        return error.NoArgs;
-    }
+        if (ret == null) {
+            return error.NoArgs;
+        }
 
-    return ret.?;
-}
+        return ret.?;
+    }
+};
 
 pub fn main() !void {
     home = std.os.getenv("HOME").?;
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    var args = parseArgs(allocator) catch |err| {
+    var args = Args.init(allocator) catch |err| {
         // TODO can do better? maybe merge MissingArgumentSet and MissingArgumentColor
         switch (err) {
             error.MissingArgumentSet => std.debug.print("Missing image argument for --set\n", .{}),
