@@ -129,10 +129,16 @@ pub fn main() !void {
             @intCast((args.action.color & 0x00FF00) >> 8),
             @intCast((args.action.color & 0x0000FF) >> 0),
         ),
-        .image => try setWallpaper(allocator, args.action.image),
+        .image => {
+            setWallpaper(allocator, args.action.image) catch |err| {
+                if (err == error.InvalidFormat) {
+                    std.debug.print("Invalid image format in file {s}\n", .{args.action.image});
+                    std.process.exit(1);
+                }
+                return err;
+            };
+        },
     }
-
-    std.process.exit(0);
 }
 
 fn listDisplays(allocator: std.mem.Allocator) !void {
@@ -182,7 +188,7 @@ fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
             !std.mem.eql(u8, ".tiff", path[path.len - 5 ..]) and
             !std.mem.eql(u8, ".heic", path[path.len - 5 ..]))
         {
-            std.process.exit(1);
+            return error.InvalidFormat;
         }
     }
     std.fs.deleteFileAbsolute(tmp_file) catch |err| {
