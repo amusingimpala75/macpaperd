@@ -40,52 +40,99 @@ fn printUsage() void {
     std.debug.print("{s}\n", .{usage});
 }
 
-pub fn main() !void {
-    home = std.os.getenv("HOME").?;
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+const Args = struct {
+    action: union(enum) {
+        print_usage,
+        displays,
+        color: u24,
+        image: []u8,
+    },
+    allocator: std.mem.Allocator,
+
+    pub fn deinit(self: Args) void {
+        if (self.action == .image) {
+            self.allocator.free(self.action.image);
+        }
+    }
+};
+
+fn parseArgs(allocator: std.mem.Allocator) !Args {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
-    _ = args.next(); // Unix first arg being name of executable
+
+    _ = args.next(); // first arg is the name of the executable
+
+    var ret: ?Args = null;
+
     if (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--set")) {
-            if (args.next()) |path| {
-                try setWallpaper(allocator, path);
+        if (std.mem.eql(u8, arg, "--displays")) {
+            ret = .{ .allocator = allocator, .action = .displays };
+        } else if (std.mem.eql(u8, arg, "--set")) {
+            if (args.next()) |image| {
+                ret = .{ .allocator = allocator, .action = .{ .image = try allocator.alloc(u8, image.len) } };
+                std.mem.copy(u8, ret.?.action.image, image);
             } else {
-                std.debug.print("Missing path arg for '--set'\n", .{});
-                std.process.exit(1);
+                return error.MissingArgumentSet;
             }
-        } else if (std.mem.eql(u8, arg, "--displays")) {
-            try listDisplays(allocator);
         } else if (std.mem.eql(u8, arg, "--color")) {
-            if (args.next()) |str| {
-                const col: u24 = std.fmt.parseInt(u24, str, 16) catch |err| {
+            if (args.next()) |color| {
+                const col: u24 = std.fmt.parseInt(u24, color, 16) catch |err| {
                     if (err == error.Overflow or err == error.InvalidCharacter) {
-                        std.debug.print("Invalid hex color: {s}\n", .{str});
+                        std.debug.print("Invalid hex color: {s}\n", .{color});
                         std.process.exit(1);
                     }
                     unreachable;
                 };
-                try setColor(
-                    allocator,
-                    @intCast((col & 0xFF0000) >> 16),
-                    @intCast((col & 0x00FF00) >> 8),
-                    @intCast((col & 0x0000FF)),
-                );
+                ret = .{ .allocator = allocator, .action = .{ .color = col } };
             } else {
-                std.debug.print("Missing color arg for '--color'\n", .{});
+                return error.MissingArgumentColor;
             }
         } else if (std.mem.eql(u8, arg, "--help")) {
-            printUsage();
-        } else {
-            std.debug.print("Unrecognized arg: {s}\n", .{arg});
-            printUsage();
-            std.process.exit(1);
+            ret = .{ .allocator = allocator, .action = .print_usage };
         }
-    } else {
-        printUsage();
-        std.process.exit(1);
     }
+
+    while (args.next()) |arg| {
+        std.debug.print("Unused arg: {s}\n", .{arg});
+    }
+
+    if (ret == null) {
+        return error.NoArgs;
+    }
+
+    return ret.?;
+}
+
+pub fn main() !void {
+    home = std.os.getenv("HOME").?;
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    var args = parseArgs(allocator) catch |err| {
+        // TODO can do better? maybe merge MissingArgumentSet and MissingArgumentColor
+        switch (err) {
+            error.MissingArgumentSet => std.debug.print("Missing image argument for --set\n", .{}),
+            error.MissingArgumentColor => std.debug.print("Missing color argument for --color\n", .{}),
+            error.NoArgs => std.debug.print("Missing arguments; run with '--help' to see a list of options\n", .{}),
+            else => return err,
+        }
+        std.process.exit(1);
+    };
+    defer args.deinit();
+
+    switch (args.action) {
+        .displays => try listDisplays(allocator),
+        .print_usage => printUsage(),
+        .color => try setColor(
+            allocator,
+            @intCast((args.action.color & 0xFF0000) >> 16),
+            @intCast((args.action.color & 0x00FF00) >> 8),
+            @intCast((args.action.color & 0x0000FF) >> 0),
+        ),
+        .image => try setWallpaper(allocator, args.action.image),
+    }
+
+    std.process.exit(0);
 }
 
 fn listDisplays(allocator: std.mem.Allocator) !void {
