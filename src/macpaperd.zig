@@ -17,16 +17,20 @@
 
 const std = @import("std");
 const sqlite = @import("sqlite");
-
 const Display = @import("Display.zig");
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
 const tmp_file = "/tmp/macpaperd.db";
-
 const db_filename = "desktoppicture.db";
 
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 var home: [:0]const u8 = undefined;
+var log_debug: bool = undefined;
+
+fn debug_log(comptime msg: []const u8, args: anytype) void {
+    if (log_debug) {
+        std.debug.print(msg, args);
+    }
+}
 
 fn printUsage() void {
     const usage =
@@ -105,14 +109,8 @@ const Args = struct {
     }
 };
 
-var log_debug: bool = undefined;
-
-fn debug_log(comptime msg: []const u8, args: anytype) void {
-    if (log_debug) {
-        std.debug.print(msg, args);
-    }
-}
-
+// TODO clean up what's actually getting debug logged, mainly in data and preferences
+// TODO proper printing to stdout/stderr for non-debug logging
 pub fn main() !void {
     home = std.os.getenv("HOME").?;
     log_debug = std.mem.eql(u8, "1", std.os.getenv("LOG_DEBUG") orelse "0");
