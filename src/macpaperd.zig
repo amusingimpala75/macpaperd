@@ -74,6 +74,10 @@ const Args = struct {
         if (args.next()) |arg| {
             if (std.mem.eql(u8, arg, "--displays")) {
                 ret = .{ .allocator = allocator, .action = .displays };
+            } else if (std.mem.eql(u8, arg, "--help")) {
+                ret = .{ .allocator = allocator, .action = .print_usage };
+            } else if (std.mem.eql(u8, arg, "--reset")) {
+                ret = .{ .allocator = allocator, .action = .reset };
             } else if (std.mem.eql(u8, arg, "--set")) {
                 if (args.next()) |image| {
                     ret = .{ .allocator = allocator, .action = .{ .image = try allocator.alloc(u8, image.len) } };
@@ -88,10 +92,6 @@ const Args = struct {
                 } else {
                     return error.MissingArgumentColor;
                 }
-            } else if (std.mem.eql(u8, arg, "--help")) {
-                ret = .{ .allocator = allocator, .action = .print_usage };
-            } else if (std.mem.eql(u8, arg, "--reset")) {
-                ret = .{ .allocator = allocator, .action = .reset };
             }
         }
 
@@ -276,18 +276,18 @@ const Preference = struct {
 };
 
 const file_preferences = [_]Preference{
+    Preference{ .key = 1, .data_id = 3 },
     Preference{ .key = 10, .data_id = 1 },
     Preference{ .key = 20, .data_id = 2 },
-    Preference{ .key = 1, .data_id = 3 },
 };
 
 const color_preferences = [_]Preference{
-    Preference{ .key = 15, .data_id = 3 },
     Preference{ .key = 1, .data_id = 4 },
     Preference{ .key = 3, .data_id = 5 },
     Preference{ .key = 4, .data_id = 6 },
     Preference{ .key = 5, .data_id = 7 },
     Preference{ .key = 10, .data_id = 1 },
+    Preference{ .key = 15, .data_id = 3 },
     Preference{ .key = 20, .data_id = 2 },
 };
 
