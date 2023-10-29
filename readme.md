@@ -40,7 +40,7 @@ Usage:
       - [x] PNG
       - [x] TIFF
       - [x] HEIC
-   - [ ] Dynamic Wallpapers
+   - [x] Dynamic Wallpapers
 - [ ] Support multiple displays. TODO:
    - [ ] decode format changes
    - [x] `createDb` is fine
@@ -52,11 +52,12 @@ Usage:
 - [ ] Write up proper documentation of `desktoppicture.db`.
 - [ ] Cycling
 - [ ] Support different wallpapers on different desktops / spaces
-- [ ] Different image fit types:
-   - [x] Fill (scale until both edges reach or extend past edge of screen)
-   - [ ] Fit (until both edges reach or are within screen, using background color where necessary)
-   - [ ] Stretch (scale until one edge reaches screen edge, then stretch along other axis)
-   - [ ] Tile (repeat image vertically and horizontally)
+- [x] Different image fit types:
+   - [x] Full (scale until both edges reach or extend past edge of screen)
+   - [x] Fit (until both edges reach or are within screen, using background color where necessary)
+   - [x] Stretch (scale until one edge reaches screen edge, then stretch along other axis)
+   - [x] Tile (repeat image vertically and horizontally)
+   - [x] Center (place in center with no scaling, using background color where necessary)
 
 ### `desktoppicture.db` Documentation
 

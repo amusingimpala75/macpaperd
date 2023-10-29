@@ -22,6 +22,24 @@ const Display = @import("Display.zig");
 const tmp_file = "/tmp/macpaperd.db";
 const db_filename = "desktoppicture.db";
 
+const PREF_FILE = 1;
+const PREF_MOD = 2;
+const PREF_R = 3;
+const PREF_G = 4;
+const PREF_B = 5;
+const PREF_FOLDER = 10;
+const PREF_TRANSPARENCY = 15;
+const PREF_DYNAMIC = 20;
+
+const DATA_FILE = 1;
+const DATA_MOD = 2;
+const DATA_R = 3;
+const DATA_G = 4;
+const DATA_B = 5;
+const DATA_FOLDER = 6;
+const DATA_TRANSPARENCY = 7;
+const DATA_DYNAMIC = 8;
+
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 var home: [:0]const u8 = undefined;
 var log_debug: bool = undefined;
@@ -35,16 +53,168 @@ fn debug_log(comptime msg: []const u8, args: anytype) void {
 fn printUsage() void {
     const usage =
         \\Usage:
-        \\  macpaperd --set [file]         Set 'file' as the wallpaper. 'file' must be an absolute path.
-        \\  macpaperd --color [hex color]  Set 'hex color' as the background color. 'hex color' must be a
-        \\                                 valid, 6 character hexidecimal number WITHOUT the '0x' prefix.
+        \\  Set a wallpaper image:
+        \\  macpaperd --set [file]         Set 'file' as the wallpaper. 'file' must be an
+        \\                                 absolute path.
+        \\            --orientation [type] Set the orientation of the image.
+        \\                                 'orientation' must be one of 'full', 'center',
+        \\                                 'fit', 'tile', or 'stretch'.
+        \\            --color [color]      Set 'hex color' as the background color.
+        \\                                 'hex color' must be a valid, 6 character
+        \\                                 hexidecimal number, no '0x' prefix. Only
+        \\                                 required if the image is transparent or the
+        \\                                 orientation is not 'full'.
+        \\            --transparent        Set the image as transparent.
+        \\            --dynamic [type]     Set the image as dynamic. 'type' must be one
+        \\                                 of 'none', 'dynamic', 'light', or 'dark'.
+        \\
+        \\  Set a wallpaper color:
+        \\  macpaperd --color [color]      Set 'hex color' as the background color.
+        \\                                 'hex color' must be a valid, 6 character
+        \\                                 hexidecimal number, no '0x' prefix.
+        \\
+        \\  Debug help:
         \\  macpaperd --displays           List the connected displays and their associated spaces.
         \\  macpaperd --help               Show this information.
         \\  macpaperd --reset              Reset the wallpaper to the default.
         \\
-        \\ Export 'LOG_DEBUG=1' to enable debug logging.
+        \\Export 'LOG_DEBUG=1' to enable debug logging.
     ;
     std.debug.print("{s}\n", .{usage});
+}
+
+const WallpaperImage = struct {
+    file: []u8,
+    orientation: Orientation = .full,
+    color: u24 = 0x000000,
+    transparent: bool = false,
+    dynamic: Dynamic = .none,
+    allocator: std.mem.Allocator,
+
+    fn init(allocator: std.mem.Allocator, file: []const u8) !WallpaperImage {
+        try validatePath(file);
+        var ret: WallpaperImage = WallpaperImage{
+            .allocator = allocator,
+            .file = undefined,
+        };
+        ret.file = try allocator.alloc(u8, file.len);
+        std.mem.copy(u8, ret.file, file);
+        return ret;
+    }
+
+    fn initColor(allocator: std.mem.Allocator, color: u24) !WallpaperImage {
+        const file_full = "/System/Library/PreferencePanes/DesktopScreenEffectsPref.prefPane/Contents/Resources/DesktopPictures.prefPane/Contents/Resources/Transparent.tiff";
+        var file = try allocator.alloc(u8, file_full.len);
+        std.mem.copy(u8, file, file_full);
+        return WallpaperImage{
+            .file = file,
+            .orientation = .full,
+            .dynamic = .none,
+            .color = color,
+            .allocator = allocator,
+            .transparent = true,
+        };
+    }
+
+    fn validatePath(image: []const u8) !void {
+        if (!std.mem.eql(u8, ".png", image[image.len - 4 ..]) and
+            !std.mem.eql(u8, ".jpg", image[image.len - 4 ..]) and
+            !std.mem.eql(u8, ".tiff", image[image.len - 5 ..]) and
+            !std.mem.eql(u8, ".heic", image[image.len - 5 ..]))
+        {
+            return error.InvalidFormat;
+        }
+
+        try std.fs.accessAbsolute(image, .{}); // exists
+    }
+
+    fn deinit(self: WallpaperImage) void {
+        self.allocator.free(self.file);
+    }
+
+    fn consumeArgs(self: *WallpaperImage, args: *std.process.ArgIterator) !void {
+        while (args.next()) |option| {
+            if (std.mem.eql(u8, option, "--orientation")) {
+                if (args.next()) |orientation| {
+                    self.orientation = try Orientation.init(orientation);
+                } else return error.MissingOrientation;
+            } else if (std.mem.eql(u8, option, "--transparent")) {
+                self.transparent = true;
+            } else if (std.mem.eql(u8, option, "--dynamic")) {
+                if (!std.mem.eql(u8, ".heic", self.file[self.file.len - 5 ..])) {
+                    return error.NotDynamic;
+                }
+                if (args.next()) |dynamic| {
+                    self.dynamic = try Dynamic.init(dynamic);
+                } else {
+                    return error.MissingDynamic;
+                }
+            } else if (std.mem.eql(u8, option, "--color")) {
+                self.color = consumeColor(args) catch |err| {
+                    if (err == error.MissingArgumentColor) {
+                        return error.WallpaperImageMissingColor;
+                    }
+                    return err;
+                };
+            } else {
+                return error.WallpaperImageInvalidOption;
+            }
+        }
+    }
+
+    const Orientation = enum(u8) {
+        full = 0,
+        tile = 2,
+        center = 3,
+        stretch = 4,
+        fit = 5,
+
+        fn init(str: []const u8) !Orientation {
+            if (std.mem.eql(u8, str, "full")) {
+                return .full;
+            } else if (std.mem.eql(u8, str, "center")) {
+                return .center;
+            } else if (std.mem.eql(u8, str, "fit")) {
+                return .fit;
+            } else if (std.mem.eql(u8, str, "stretch")) {
+                return .stretch;
+            } else if (std.mem.eql(u8, str, "tile")) {
+                return .tile;
+            } else {
+                return error.InvalidOrientation;
+            }
+        }
+    };
+
+    const Dynamic = enum {
+        none,
+        dynamic,
+        light,
+        dark,
+
+        fn init(str: []const u8) !Dynamic {
+            if (std.mem.eql(u8, str, "none")) {
+                return .none;
+            } else if (std.mem.eql(u8, str, "dynamic")) {
+                return .dynamic;
+            } else if (std.mem.eql(u8, str, "light")) {
+                return .light;
+            } else if (std.mem.eql(u8, str, "dark")) {
+                return .dark;
+            } else {
+                return error.InvalidDynamic;
+            }
+        }
+    };
+};
+
+fn consumeColor(args: *std.process.ArgIterator) !u24 {
+    if (args.next()) |color| {
+        const col = try std.fmt.parseInt(u24, color, 16);
+        return col;
+    } else {
+        return error.MissingArgumentColor;
+    }
 }
 
 const Args = struct {
@@ -52,14 +222,13 @@ const Args = struct {
         print_usage,
         displays,
         reset,
-        color: u24,
-        image: []u8,
+        set: WallpaperImage,
     },
     allocator: std.mem.Allocator,
 
     pub fn deinit(self: Args) void {
-        if (self.action == .image) {
-            self.allocator.free(self.action.image);
+        if (self.action == .set) {
+            self.action.set.deinit();
         }
     }
 
@@ -80,18 +249,14 @@ const Args = struct {
                 ret = .{ .allocator = allocator, .action = .reset };
             } else if (std.mem.eql(u8, arg, "--set")) {
                 if (args.next()) |image| {
-                    ret = .{ .allocator = allocator, .action = .{ .image = try allocator.alloc(u8, image.len) } };
-                    std.mem.copy(u8, ret.?.action.image, image);
+                    ret = .{ .allocator = allocator, .action = .{ .set = try WallpaperImage.init(allocator, image) } };
+                    try ret.?.action.set.consumeArgs(&args);
                 } else {
                     return error.MissingArgumentSet;
                 }
             } else if (std.mem.eql(u8, arg, "--color")) {
-                if (args.next()) |color| {
-                    const col = try std.fmt.parseInt(u24, color, 16);
-                    ret = .{ .allocator = allocator, .action = .{ .color = col } };
-                } else {
-                    return error.MissingArgumentColor;
-                }
+                const col = try consumeColor(&args);
+                ret = .{ .allocator = allocator, .action = .{ .set = try WallpaperImage.initColor(allocator, col) } };
             }
         }
 
@@ -107,8 +272,15 @@ const Args = struct {
     }
 };
 
-// TODO clean up what's actually getting debug logged, mainly in data and preferences
 // TODO proper printing to stdout/stderr for non-debug logging
+// 1 => image file (if transparent: /System/Library/PreferencePanes/DesktopScreenEffectsPref.prefPane/Contents/Resources/DesktopPictures.prefPane/Contents/Resources/Transparent.tiff)
+// 2 => what modifications to image (missing = full, 3 = center, 5 = fit, 4 = stretch)
+// 3 => r  |
+// 4 => g  | RGB of the background
+// 5 => b  |
+// 10 => image folder
+// 15 => indicates transparency in the image (1 = allow transparency)
+// 20 => automatically changing wallpapers (0 = not dynamic, 1 = dynamic/automatic (dynamic is for location, automatic is for system theme), 2 = light, 3 = dark)
 pub fn main() !void {
     home = std.os.getenv("HOME").?;
     log_debug = std.mem.eql(u8, "1", std.os.getenv("LOG_DEBUG") orelse "0");
@@ -117,13 +289,19 @@ pub fn main() !void {
 
     var args = Args.init(allocator) catch |err| {
         // TODO can do better? maybe merge MissingArgumentSet and MissingArgumentColor
-        switch (err) {
-            error.MissingArgumentSet => std.debug.print("Missing image argument for --set\n", .{}),
-            error.MissingArgumentColor => std.debug.print("Missing color argument for --color\n", .{}),
-            error.NoArgs => std.debug.print("Missing arguments; run with '--help' to see a list of options\n", .{}),
-            error.Overflow, error.InvalidCharacter => std.debug.print("Invalid hex color\n", .{}),
+        std.debug.print("{s}\n", .{switch (err) {
+            error.MissingArgumentSet => "Missing file for --set",
+            error.MissingArgumentColor => "Missing color for --color",
+            error.NoArgs => "Missing arguments; run with --help to see a list of options",
+            error.Overflow, error.InvalidCharacter => "Invalid hex color",
+            error.InvalidOrientation => "Invalid orientation",
+            error.MissingOrientation => "Missing orientation for --orientation",
+            error.MissingDynamic => "Missing dynamic value",
+            error.WallpaperImageMissingColor => "Missing color",
+            error.WallpaperImageInvalidOption => "Invalid wallpaper configuration options",
+            error.NotDynamic => "Cannot use --dynamic on a non-dynamic wallpaper",
             else => return err,
-        }
+        }});
         std.process.exit(1);
     };
     defer args.deinit();
@@ -131,23 +309,7 @@ pub fn main() !void {
     switch (args.action) {
         .displays => try listDisplays(allocator),
         .print_usage => printUsage(),
-        .color => try setWallpaper(
-            allocator,
-            .{ .color = [3]u8{
-                @intCast((args.action.color & 0xFF0000) >> 16),
-                @intCast((args.action.color & 0x00FF00) >> 8),
-                @intCast((args.action.color & 0x0000FF) >> 0),
-            } },
-        ),
-        .image => {
-            setWallpaper(allocator, .{ .file = args.action.image }) catch |err| {
-                if (err == error.InvalidFormat) {
-                    std.debug.print("Invalid image format in file {s}\n", .{args.action.image});
-                    std.process.exit(1);
-                }
-                return err;
-            };
-        },
+        .set => |wp| try setWallpaper(allocator, wp),
         .reset => {
             try removeOld(allocator);
             try restartDock(allocator);
@@ -175,32 +337,7 @@ fn listDisplays(allocator: std.mem.Allocator) !void {
     }
 }
 
-const Wallpaper = union(enum) {
-    file: []u8,
-    color: [3]u8,
-};
-
-fn validateWallpaper(wp: Wallpaper) !void {
-    switch (wp) {
-        .file => |path| { // Validate path
-            try std.fs.accessAbsolute(path, .{}); // exists
-            if (!std.mem.eql(u8, ".png", path[path.len - 4 ..]) and
-                !std.mem.eql(u8, ".jpg", path[path.len - 4 ..]) and
-                !std.mem.eql(u8, ".tiff", path[path.len - 5 ..]) and
-                !std.mem.eql(u8, ".heic", path[path.len - 5 ..]))
-            {
-                return error.InvalidFormat;
-            }
-            debug_log("Setting wallpaper to image {s}\n", .{path});
-        },
-        .color => |cols| {
-            debug_log("Setting wallpaper to color r: {d}, g: {d}, b: {d}\n", .{ cols[0], cols[1], cols[2] });
-        },
-    }
-}
-
-fn setWallpaper(allocator: std.mem.Allocator, wp: Wallpaper) !void {
-    try validateWallpaper(wp);
+fn setWallpaper(allocator: std.mem.Allocator, wp: WallpaperImage) !void {
     std.fs.deleteFileAbsolute(tmp_file) catch |err| {
         if (err != error.FileNotFound) return err;
     };
@@ -208,11 +345,7 @@ fn setWallpaper(allocator: std.mem.Allocator, wp: Wallpaper) !void {
     defer db.deinit();
     try fillDisplaysAndSpaces(allocator, &db);
     try fillPicturesPreferences(allocator, &db, wp);
-    if (wp == .color) {
-        try fillColorData(&db, wp.color[0], wp.color[1], wp.color[2]);
-    } else {
-        try fillFileData(&db, wp.file);
-    }
+    try fillData(&db, wp);
     try replaceOldWithNew(allocator);
     try restartDock(allocator);
 }
@@ -243,31 +376,25 @@ fn replaceOldWithNew(allocator: std.mem.Allocator) !void {
     try std.fs.copyFileAbsolute(tmp_file, path, .{});
 }
 
-fn fillFileData(db: *sqlite.Db, file_path: []const u8) !void {
-    try std.fs.accessAbsolute(file_path, .{}); // ensure file exists
+fn fillData(db: *sqlite.Db, wp: WallpaperImage) !void {
     const folder = blk: {
-        var i = file_path.len - 1;
+        var i = wp.file.len - 1;
         while (i >= 0) : (i -= 1) {
-            if (file_path[i] == '/') {
-                break :blk file_path[0..i];
+            if (wp.file[i] == '/') {
+                break :blk wp.file[0..i];
             }
         }
     };
     const insert = "INSERT INTO data(value) VALUES(?)";
-    try db.execDynamic(insert, .{}, .{ .value = folder });
-    try db.execDynamic(insert, .{}, .{ .value = @as(usize, 0) });
-    try db.execDynamic(insert, .{}, .{ .value = file_path });
-}
 
-fn fillColorData(db: *sqlite.Db, r: u8, g: u8, b: u8) !void {
-    const insert = "INSERT INTO data(value) VALUES(?)";
-    try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, "/System/Library/Desktop Pictures/Solid Colors") });
-    try db.execDynamic(insert, .{}, .{ .value = @as(usize, 0) });
-    try db.execDynamic(insert, .{}, .{ .value = @as(usize, 1) });
-    try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, "/System/Library/PreferencePanes/DesktopScreenEffectsPref.prefPane/Contents/Resources/DesktopPictures.prefPane/Contents/Resources/Transparent.tiff") });
-    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt(r)) / 255.0 });
-    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt(g)) / 255.0 });
-    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt(b)) / 255.0 });
+    try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, wp.file) });
+    try db.execDynamic(insert, .{}, .{ .value = @as(usize, @intFromEnum(wp.orientation)) });
+    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt((wp.color & 0xff0000) >> 16)) / 255.0 });
+    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt((wp.color & 0x00ff00) >> 8)) / 255.0 });
+    try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt((wp.color & 0x0000ff))) / 255.0 });
+    try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, folder) });
+    try db.execDynamic(insert, .{}, .{ .value = @as(usize, if (wp.transparent) 1 else 0) });
+    try db.execDynamic(insert, .{}, .{ .value = @as(usize, @intFromEnum(wp.dynamic)) });
 }
 
 const Preference = struct {
@@ -275,24 +402,19 @@ const Preference = struct {
     data_id: u8,
 };
 
-const file_preferences = [_]Preference{
-    Preference{ .key = 1, .data_id = 3 },
-    Preference{ .key = 10, .data_id = 1 },
-    Preference{ .key = 20, .data_id = 2 },
+const preferences = [_]Preference{
+    Preference{ .key = PREF_FILE, .data_id = DATA_FILE },
+    Preference{ .key = PREF_MOD, .data_id = DATA_MOD },
+    Preference{ .key = PREF_R, .data_id = DATA_R },
+    Preference{ .key = PREF_G, .data_id = DATA_G },
+    Preference{ .key = PREF_B, .data_id = DATA_B },
+    Preference{ .key = PREF_FOLDER, .data_id = DATA_FOLDER },
+    Preference{ .key = PREF_TRANSPARENCY, .data_id = DATA_TRANSPARENCY },
+    Preference{ .key = PREF_DYNAMIC, .data_id = DATA_DYNAMIC },
 };
 
-const color_preferences = [_]Preference{
-    Preference{ .key = 1, .data_id = 4 },
-    Preference{ .key = 3, .data_id = 5 },
-    Preference{ .key = 4, .data_id = 6 },
-    Preference{ .key = 5, .data_id = 7 },
-    Preference{ .key = 10, .data_id = 1 },
-    Preference{ .key = 15, .data_id = 3 },
-    Preference{ .key = 20, .data_id = 2 },
-};
-
-fn fillPreference(db: *sqlite.Db, cmd: []const u8, index: usize, preferences: []const Preference) !void {
-    for (preferences) |*pref| {
+fn fillPreference(db: *sqlite.Db, cmd: []const u8, index: usize, prefs: []const Preference) !void {
+    for (prefs) |*pref| {
         try db.execDynamic(
             cmd,
             .{},
@@ -302,7 +424,8 @@ fn fillPreference(db: *sqlite.Db, cmd: []const u8, index: usize, preferences: []
 }
 
 // Inserts into preferences and pictures, since those depend on looping through the spaces
-fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpaper: Wallpaper) !void {
+fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpaper: WallpaperImage) !void {
+    _ = wallpaper;
     const row_count: usize = blk: {
         const displays = try Display.getDisplays(allocator);
         defer {
@@ -316,24 +439,19 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpap
     const insert_picture = "INSERT INTO pictures(space_id, display_id) VALUES(?, ?)";
     const insert_preference = "INSERT INTO preferences(key, data_id, picture_id) VALUES(?, ?, ?)";
 
-    const pref: []const Preference = switch (wallpaper) {
-        .file => &file_preferences,
-        .color => &color_preferences,
-    };
-
-    try fillPreference(db, insert_preference, 1, pref);
-    try fillPreference(db, insert_preference, 2, pref);
+    try fillPreference(db, insert_preference, 1, &preferences);
+    try fillPreference(db, insert_preference, 2, &preferences);
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = null });
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
 
     for (1..row_count + 1) |i| {
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = 1 });
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = null });
-        try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 1, pref);
-        try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 2, pref);
+        try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 1, &preferences);
+        try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 2, &preferences);
     }
     debug_log("Added {d} rows to pictures\n", .{(row_count + 1) * 2});
-    debug_log("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper == .file) 3 else 7)});
+    //debug_log("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper == .file) 3 else 7)});
 }
 
 fn fillDisplaysAndSpaces(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
