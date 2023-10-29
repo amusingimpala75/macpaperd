@@ -132,14 +132,16 @@ pub fn main() !void {
     switch (args.action) {
         .displays => try listDisplays(allocator),
         .print_usage => printUsage(),
-        .color => try setColor(
+        .color => try setWallpaper(
             allocator,
-            @intCast((args.action.color & 0xFF0000) >> 16),
-            @intCast((args.action.color & 0x00FF00) >> 8),
-            @intCast((args.action.color & 0x0000FF) >> 0),
+            .{ .color = [3]u8{
+                @intCast((args.action.color & 0xFF0000) >> 16),
+                @intCast((args.action.color & 0x00FF00) >> 8),
+                @intCast((args.action.color & 0x0000FF) >> 0),
+            } },
         ),
         .image => {
-            setWallpaper(allocator, args.action.image) catch |err| {
+            setWallpaper(allocator, .{ .file = args.action.image }) catch |err| {
                 if (err == error.InvalidFormat) {
                     std.debug.print("Invalid image format in file {s}\n", .{args.action.image});
                     std.process.exit(1);
@@ -170,45 +172,44 @@ fn listDisplays(allocator: std.mem.Allocator) !void {
     }
 }
 
-const WallpaperType = enum {
-    file,
-    color,
+const Wallpaper = union(enum) {
+    file: []u8,
+    color: [3]u8,
 };
 
-fn setColor(allocator: std.mem.Allocator, r: u8, g: u8, b: u8) !void {
-    debug_log("Setting wallpaper to color r: {d}, g: {d}, b: {d}\n", .{ r, g, b });
+fn validateWallpaper(wp: Wallpaper) !void {
+    switch (wp) {
+        .file => |path| { // Validate path
+            try std.fs.accessAbsolute(path, .{}); // exists
+            if (!std.mem.eql(u8, ".png", path[path.len - 4 ..]) and
+                !std.mem.eql(u8, ".jpg", path[path.len - 4 ..]) and
+                !std.mem.eql(u8, ".tiff", path[path.len - 5 ..]) and
+                !std.mem.eql(u8, ".heic", path[path.len - 5 ..]))
+            {
+                return error.InvalidFormat;
+            }
+            debug_log("Setting wallpaper to image {s}\n", .{path});
+        },
+        .color => |cols| {
+            debug_log("Setting wallpaper to color r: {d}, g: {d}, b: {d}\n", .{ cols[0], cols[1], cols[2] });
+        },
+    }
+}
+
+fn setWallpaper(allocator: std.mem.Allocator, wp: Wallpaper) !void {
+    try validateWallpaper(wp);
     std.fs.deleteFileAbsolute(tmp_file) catch |err| {
-        if (err == error.FileNotFound) {} else return err;
+        if (err != error.FileNotFound) return err;
     };
     var db = try createDb();
     defer db.deinit();
     try fillDisplaysAndSpaces(allocator, &db);
-    try fillPicturesPreferences(allocator, &db, .color);
-    try fillColorData(&db, r, g, b);
-    try replaceOldWithNew(allocator);
-    try restartDock(allocator);
-}
-
-fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
-    { // Validate path
-        try std.fs.accessAbsolute(path, .{}); // exists
-        if (!std.mem.eql(u8, ".png", path[path.len - 4 ..]) and
-            !std.mem.eql(u8, ".jpg", path[path.len - 4 ..]) and
-            !std.mem.eql(u8, ".tiff", path[path.len - 5 ..]) and
-            !std.mem.eql(u8, ".heic", path[path.len - 5 ..]))
-        {
-            return error.InvalidFormat;
-        }
+    try fillPicturesPreferences(allocator, &db, wp);
+    if (wp == .color) {
+        try fillColorData(&db, wp.color[0], wp.color[1], wp.color[2]);
+    } else {
+        try fillFileData(&db, wp.file);
     }
-    debug_log("Setting wallpaper to imaage {s}\n", .{path});
-    std.fs.deleteFileAbsolute(tmp_file) catch |err| {
-        if (err != error.FileNotFound) return err;
-    };
-    var db = try createDb(); // prefs is complete (empty)
-    defer db.deinit();
-    try fillDisplaysAndSpaces(allocator, &db); // displays and spaces are complete
-    try fillPicturesPreferences(allocator, &db, .file); // pictures and preferences are complete
-    try fillFileData(&db, path); // data is complete; DB done
     try replaceOldWithNew(allocator);
     try restartDock(allocator);
 }
@@ -282,12 +283,16 @@ const color_preferences = [_]Preference{
 
 fn fillPreference(db: *sqlite.Db, cmd: []const u8, index: usize, preferences: []const Preference) !void {
     for (preferences) |*pref| {
-        try db.execDynamic(cmd, .{}, .{ .key = @as(usize, pref.key), .data_id = @as(usize, pref.data_id), .picture_id = index });
+        try db.execDynamic(
+            cmd,
+            .{},
+            .{ .key = @as(usize, pref.key), .data_id = @as(usize, pref.data_id), .picture_id = index },
+        );
     }
 }
 
 // Inserts into preferences and pictures, since those depend on looping through the spaces
-fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpaper_type: WallpaperType) !void {
+fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpaper: Wallpaper) !void {
     const row_count: usize = blk: {
         const displays = try Display.getDisplays(allocator);
         defer {
@@ -301,16 +306,15 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpap
     const insert_picture = "INSERT INTO pictures(space_id, display_id) VALUES(?, ?)";
     const insert_preference = "INSERT INTO preferences(key, data_id, picture_id) VALUES(?, ?, ?)";
 
-    try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = null });
-    try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
-
-    const pref: []const Preference = switch (wallpaper_type) {
+    const pref: []const Preference = switch (wallpaper) {
         .file => &file_preferences,
         .color => &color_preferences,
     };
 
     try fillPreference(db, insert_preference, 1, pref);
     try fillPreference(db, insert_preference, 2, pref);
+    try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = null });
+    try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
 
     for (1..row_count + 1) |i| {
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = 1 });
@@ -319,7 +323,7 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpap
         try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 2, pref);
     }
     debug_log("Added {d} rows to pictures\n", .{(row_count + 1) * 2});
-    debug_log("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper_type == .file) 3 else 7)});
+    debug_log("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper == .file) 3 else 7)});
 }
 
 fn fillDisplaysAndSpaces(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
