@@ -6,7 +6,7 @@ Disclaimer: although the name includes 'mac' and this is built for macOS, this i
 
 ### Read before use
 
-`macpaperd` is still alpha software, and as such it can damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. By break, I mean that Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in macOS menubar) and run `rm ~/Library/Application\ Support/desktoppicture.db && killall Dock`. Oh and wallpaper won't work while it's broken, and when you fix it via the above command all the spaces' wallpapers will be reset. That said, feel free to try it out; just don't come crying if you can't figure out why it's broken.
+`macpaperd` is still alpha software, and as such it can damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. By break, I mean that Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in the macOS menu bar) and run `macpaperd --reset`. Oh and wallpaper won't work while it's broken, and when you fix it via the above command all the spaces' wallpapers will be reset. That said, feel free to try it out; just don't come crying if you can't figure out why it's broken.
 
 ## Dependencies
 
@@ -22,11 +22,32 @@ The `-Dbundle-sqlite` build option will bundle `zig-sqlite`'s sqlite3 instead of
 
 ```
 Usage:
-  macpaperd --set [file]          Set 'file' as the wallpaper. 'file' must be an absolute path.
-  macpaperd --color [hex color]   Set 'hex color' as the background color. 'hex color' must be a
-                                  valid, 6 character hexidecimal number WITHOUT the '0x' prefix.
-  macpaperd --displays            List the connected displays and their associated spaces.
-  macpaperd --help                Show this info.
+  Set a wallpaper image:
+  macpaperd --set [file]         Set 'file' as the wallpaper. 'file' must be an
+                                 absolute path.
+            --orientation [type] Set the orientation of the image.
+                                 'orientation' must be one of 'full', 'center',
+                                 'fit', 'tile', or 'stretch'.
+            --color [color]      Set 'hex color' as the background color.
+                                 'hex color' must be a valid, 6 character
+                                 hexidecimal number, no '0x' prefix. Only
+                                 required if the image is transparent or the
+                                 orientation is not 'full'.
+            --transparent        Set the image as transparent.
+            --dynamic [type]     Set the image as dynamic. 'type' must be one
+                                 of 'none', 'dynamic', 'light', or 'dark'.
+
+  Set a wallpaper color:
+  macpaperd --color [color]      Set 'hex color' as the background color.
+                                 'hex color' must be a valid, 6 character
+                                 hexidecimal number, no '0x' prefix.
+
+  Debug help:
+  macpaperd --displays           List the connected displays and their associated spaces.
+  macpaperd --help               Show this information.
+  macpaperd --reset              Reset the wallpaper to the default.
+
+Export 'LOG_DEBUG=1' to enable debug logging.
 ```
 
 #### Features \ TODO
