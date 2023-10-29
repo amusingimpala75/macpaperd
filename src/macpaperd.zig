@@ -40,6 +40,7 @@ fn printUsage() void {
         \\                                 valid, 6 character hexidecimal number WITHOUT the '0x' prefix.
         \\  macpaperd --displays           List the connected displays and their associated spaces.
         \\  macpaperd --help               Show this information.
+        \\  macpaperd --reset              Reset the wallpaper to the default.
         \\
         \\ Export 'LOG_DEBUG=1' to enable debug logging.
     ;
@@ -50,6 +51,7 @@ const Args = struct {
     action: union(enum) {
         print_usage,
         displays,
+        reset,
         color: u24,
         image: []u8,
     },
@@ -88,6 +90,8 @@ const Args = struct {
                 }
             } else if (std.mem.eql(u8, arg, "--help")) {
                 ret = .{ .allocator = allocator, .action = .print_usage };
+            } else if (std.mem.eql(u8, arg, "--reset")) {
+                ret = .{ .allocator = allocator, .action = .reset };
             }
         }
 
@@ -143,6 +147,10 @@ pub fn main() !void {
                 }
                 return err;
             };
+        },
+        .reset => {
+            try removeOld(allocator);
+            try restartDock(allocator);
         },
     }
 }
@@ -218,13 +226,20 @@ fn restartDock(allocator: std.mem.Allocator) !void {
     assert(results.stderr.len == 0);
 }
 
-fn replaceOldWithNew(allocator: std.mem.Allocator) !void {
+fn removeOld(allocator: std.mem.Allocator) !void {
     const path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{home});
     defer allocator.free(path);
 
     std.fs.deleteFileAbsolute(path) catch |err| {
         if (err != error.FileNotFound) return err;
     };
+}
+
+fn replaceOldWithNew(allocator: std.mem.Allocator) !void {
+    const path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{home});
+    defer allocator.free(path);
+
+    try removeOld(allocator);
     try std.fs.copyFileAbsolute(tmp_file, path, .{});
 }
 
