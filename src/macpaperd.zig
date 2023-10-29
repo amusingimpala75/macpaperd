@@ -344,7 +344,7 @@ fn setWallpaper(allocator: std.mem.Allocator, wp: WallpaperImage) !void {
     var db = try createDb();
     defer db.deinit();
     try fillDisplaysAndSpaces(allocator, &db);
-    try fillPicturesPreferences(allocator, &db, wp);
+    try fillPicturesPreferences(allocator, &db);
     try fillData(&db, wp);
     try replaceOldWithNew(allocator);
     try restartDock(allocator);
@@ -413,10 +413,10 @@ const preferences = [_]Preference{
     Preference{ .key = PREF_DYNAMIC, .data_id = DATA_DYNAMIC },
 };
 
-fn fillPreference(db: *sqlite.Db, cmd: []const u8, index: usize, prefs: []const Preference) !void {
-    for (prefs) |*pref| {
+fn fillPreference(db: *sqlite.Db, index: usize) !void {
+    for (preferences) |pref| {
         try db.execDynamic(
-            cmd,
+            "INSERT INTO preferences(key, data_id, picture_id) VALUES(?, ?, ?)",
             .{},
             .{ .key = @as(usize, pref.key), .data_id = @as(usize, pref.data_id), .picture_id = index },
         );
@@ -424,8 +424,7 @@ fn fillPreference(db: *sqlite.Db, cmd: []const u8, index: usize, prefs: []const 
 }
 
 // Inserts into preferences and pictures, since those depend on looping through the spaces
-fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpaper: WallpaperImage) !void {
-    _ = wallpaper;
+fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
     const row_count: usize = blk: {
         const displays = try Display.getDisplays(allocator);
         defer {
@@ -437,21 +436,20 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpap
         break :blk displays[0].spaces.len;
     };
     const insert_picture = "INSERT INTO pictures(space_id, display_id) VALUES(?, ?)";
-    const insert_preference = "INSERT INTO preferences(key, data_id, picture_id) VALUES(?, ?, ?)";
 
-    try fillPreference(db, insert_preference, 1, &preferences);
-    try fillPreference(db, insert_preference, 2, &preferences);
+    try fillPreference(db, 1);
+    try fillPreference(db, 2);
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = null });
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
 
     for (1..row_count + 1) |i| {
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = 1 });
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = null });
-        try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 1, &preferences);
-        try fillPreference(db, insert_preference, 2 * (i - 1) + 2 + 2, &preferences);
+        try fillPreference(db, 2 * (i - 1) + 2 + 1);
+        try fillPreference(db, 2 * (i - 1) + 2 + 2);
     }
     debug_log("Added {d} rows to pictures\n", .{(row_count + 1) * 2});
-    //debug_log("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * @as(u8, if (wallpaper == .file) 3 else 7)});
+    debug_log("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * 8});
 }
 
 fn fillDisplaysAndSpaces(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
