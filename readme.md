@@ -33,7 +33,6 @@ Usage:
                                  hexidecimal number, no '0x' prefix. Only
                                  required if the image is transparent or the
                                  orientation is not 'full'.
-            --transparent        Set the image as transparent.
             --dynamic [type]     Set the image as dynamic. 'type' must be one
                                  of 'none', 'dynamic', 'light', or 'dark'.
 

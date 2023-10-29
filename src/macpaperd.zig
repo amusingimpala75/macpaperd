@@ -64,7 +64,6 @@ fn printUsage() void {
         \\                                 hexidecimal number, no '0x' prefix. Only
         \\                                 required if the image is transparent or the
         \\                                 orientation is not 'full'.
-        \\            --transparent        Set the image as transparent.
         \\            --dynamic [type]     Set the image as dynamic. 'type' must be one
         \\                                 of 'none', 'dynamic', 'light', or 'dark'.
         \\
@@ -87,7 +86,7 @@ const WallpaperImage = struct {
     file: []u8,
     orientation: Orientation = .full,
     color: u24 = 0x000000,
-    transparent: bool = false,
+    flat_color: bool = false,
     dynamic: Dynamic = .none,
     allocator: std.mem.Allocator,
 
@@ -112,7 +111,7 @@ const WallpaperImage = struct {
             .dynamic = .none,
             .color = color,
             .allocator = allocator,
-            .transparent = true,
+            .flat_color = true,
         };
     }
 
@@ -138,8 +137,6 @@ const WallpaperImage = struct {
                 if (args.next()) |orientation| {
                     self.orientation = try Orientation.init(orientation);
                 } else return error.MissingOrientation;
-            } else if (std.mem.eql(u8, option, "--transparent")) {
-                self.transparent = true;
             } else if (std.mem.eql(u8, option, "--dynamic")) {
                 if (!std.mem.eql(u8, ".heic", self.file[self.file.len - 5 ..])) {
                     return error.NotDynamic;
@@ -393,7 +390,7 @@ fn fillData(db: *sqlite.Db, wp: WallpaperImage) !void {
     try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt((wp.color & 0x00ff00) >> 8)) / 255.0 });
     try db.execDynamic(insert, .{}, .{ .value = @as(f32, @floatFromInt((wp.color & 0x0000ff))) / 255.0 });
     try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, folder) });
-    try db.execDynamic(insert, .{}, .{ .value = @as(usize, if (wp.transparent) 1 else 0) });
+    try db.execDynamic(insert, .{}, .{ .value = @as(usize, if (wp.flat_color) 1 else 0) });
     try db.execDynamic(insert, .{}, .{ .value = @as(usize, @intFromEnum(wp.dynamic)) });
 }
 
