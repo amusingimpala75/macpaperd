@@ -81,13 +81,7 @@ const Args = struct {
                 }
             } else if (std.mem.eql(u8, arg, "--color")) {
                 if (args.next()) |color| {
-                    const col: u24 = std.fmt.parseInt(u24, color, 16) catch |err| {
-                        if (err == error.Overflow or err == error.InvalidCharacter) {
-                            std.debug.print("Invalid hex color: {s}\n", .{color});
-                            std.process.exit(1);
-                        }
-                        unreachable;
-                    };
+                    const col = try std.fmt.parseInt(u24, color, 16);
                     ret = .{ .allocator = allocator, .action = .{ .color = col } };
                 } else {
                     return error.MissingArgumentColor;
@@ -123,6 +117,7 @@ pub fn main() !void {
             error.MissingArgumentSet => std.debug.print("Missing image argument for --set\n", .{}),
             error.MissingArgumentColor => std.debug.print("Missing color argument for --color\n", .{}),
             error.NoArgs => std.debug.print("Missing arguments; run with '--help' to see a list of options\n", .{}),
+            error.Overflow, error.InvalidCharacter => std.debug.print("Invalid hex color\n", .{}),
             else => return err,
         }
         std.process.exit(1);
