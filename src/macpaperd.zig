@@ -200,6 +200,7 @@ fn setWallpaper(allocator: std.mem.Allocator, path: []const u8) !void {
             return error.InvalidFormat;
         }
     }
+    debug_log("Setting wallpaper to imaage {s}\n", .{path});
     std.fs.deleteFileAbsolute(tmp_file) catch |err| {
         if (err != error.FileNotFound) return err;
     };
@@ -242,7 +243,6 @@ fn fillFileData(db: *sqlite.Db, file_path: []const u8) !void {
         }
     };
     const insert = "INSERT INTO data(value) VALUES(?)";
-    debug_log("{s}\n", .{insert});
     try db.execDynamic(insert, .{}, .{ .value = folder });
     try db.execDynamic(insert, .{}, .{ .value = @as(usize, 0) });
     try db.execDynamic(insert, .{}, .{ .value = file_path });
@@ -250,7 +250,6 @@ fn fillFileData(db: *sqlite.Db, file_path: []const u8) !void {
 
 fn fillColorData(db: *sqlite.Db, r: u8, g: u8, b: u8) !void {
     const insert = "INSERT INTO data(value) VALUES(?)";
-    debug_log("{s}\n", .{insert});
     try db.execDynamic(insert, .{}, .{ .value = @as([]const u8, "/System/Library/Desktop Pictures/Solid Colors") });
     try db.execDynamic(insert, .{}, .{ .value = @as(usize, 0) });
     try db.execDynamic(insert, .{}, .{ .value = @as(usize, 1) });
@@ -301,8 +300,6 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db, wallpap
     };
     const insert_picture = "INSERT INTO pictures(space_id, display_id) VALUES(?, ?)";
     const insert_preference = "INSERT INTO preferences(key, data_id, picture_id) VALUES(?, ?, ?)";
-    debug_log("{s}\n", .{insert_picture});
-    debug_log("{s}\n", .{insert_preference});
 
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = null });
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
