@@ -20,10 +20,9 @@ const sqlite = @import("sqlite");
 const Display = @import("Display.zig");
 
 const tmp_file = "/tmp/macpaperd.db";
-const db_filename = "desktoppicture.db";
 
 const PREF_FILE = 1;
-const PREF_MOD = 2;
+const PREF_OREINTATION = 2;
 const PREF_R = 3;
 const PREF_G = 4;
 const PREF_B = 5;
@@ -32,7 +31,7 @@ const PREF_TRANSPARENCY = 15;
 const PREF_DYNAMIC = 20;
 
 const DATA_FILE = 1;
-const DATA_MOD = 2;
+const DATA_OREINTATION = 2;
 const DATA_R = 3;
 const DATA_G = 4;
 const DATA_B = 5;
@@ -41,8 +40,9 @@ const DATA_TRANSPARENCY = 7;
 const DATA_DYNAMIC = 8;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-var home: [:0]const u8 = undefined;
 var log_debug: bool = undefined;
+
+var db_file: []u8 = undefined;
 
 fn debug_log(comptime msg: []const u8, args: anytype) void {
     if (log_debug) {
@@ -279,10 +279,12 @@ const Args = struct {
 // 15 => indicates transparency in the image (1 = allow transparency)
 // 20 => automatically changing wallpapers (0 = not dynamic, 1 = dynamic/automatic (dynamic is for location, automatic is for system theme), 2 = light, 3 = dark)
 pub fn main() !void {
-    home = std.os.getenv("HOME").?;
-    log_debug = std.mem.eql(u8, "1", std.os.getenv("LOG_DEBUG") orelse "0");
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
+
+    log_debug = std.mem.eql(u8, "1", std.os.getenv("LOG_DEBUG") orelse "0");
+    db_file = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{std.os.getenv("HOME").?});
+    defer allocator.free(db_file);
 
     var args = Args.init(allocator) catch |err| {
         // TODO can do better? maybe merge MissingArgumentSet and MissingArgumentColor
@@ -308,7 +310,7 @@ pub fn main() !void {
         .print_usage => printUsage(),
         .set => |wp| try setWallpaper(allocator, wp),
         .reset => {
-            try removeOld(allocator);
+            try removeOld();
             try restartDock(allocator);
         },
     }
@@ -343,7 +345,7 @@ fn setWallpaper(allocator: std.mem.Allocator, wp: WallpaperImage) !void {
     try fillDisplaysAndSpaces(allocator, &db);
     try fillPicturesPreferences(allocator, &db);
     try fillData(&db, wp);
-    try replaceOldWithNew(allocator);
+    try replaceOldWithNew();
     try restartDock(allocator);
 }
 
@@ -356,21 +358,15 @@ fn restartDock(allocator: std.mem.Allocator) !void {
     assert(results.stderr.len == 0);
 }
 
-fn removeOld(allocator: std.mem.Allocator) !void {
-    const path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{home});
-    defer allocator.free(path);
-
-    std.fs.deleteFileAbsolute(path) catch |err| {
+fn removeOld() !void {
+    std.fs.deleteFileAbsolute(db_file) catch |err| {
         if (err != error.FileNotFound) return err;
     };
 }
 
-fn replaceOldWithNew(allocator: std.mem.Allocator) !void {
-    const path = try std.fmt.allocPrint(allocator, "{s}/Library/Application Support/Dock/desktoppicture.db", .{home});
-    defer allocator.free(path);
-
-    try removeOld(allocator);
-    try std.fs.copyFileAbsolute(tmp_file, path, .{});
+fn replaceOldWithNew() !void {
+    try removeOld();
+    try std.fs.copyFileAbsolute(tmp_file, db_file, .{});
 }
 
 fn fillData(db: *sqlite.Db, wp: WallpaperImage) !void {
@@ -401,7 +397,7 @@ const Preference = struct {
 
 const preferences = [_]Preference{
     Preference{ .key = PREF_FILE, .data_id = DATA_FILE },
-    Preference{ .key = PREF_MOD, .data_id = DATA_MOD },
+    Preference{ .key = PREF_OREINTATION, .data_id = DATA_OREINTATION },
     Preference{ .key = PREF_R, .data_id = DATA_R },
     Preference{ .key = PREF_G, .data_id = DATA_G },
     Preference{ .key = PREF_B, .data_id = DATA_B },
@@ -440,13 +436,13 @@ fn fillPicturesPreferences(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
     try db.execDynamic(insert_picture, .{}, .{ .space_id = null, .display_id = @as(usize, 1) });
 
     for (1..row_count + 1) |i| {
-        try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = 1 });
+        try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = @as(usize, 1) });
         try db.execDynamic(insert_picture, .{}, .{ .space_id = i, .display_id = null });
         try fillPreference(db, 2 * (i - 1) + 2 + 1);
         try fillPreference(db, 2 * (i - 1) + 2 + 2);
     }
     debug_log("Added {d} rows to pictures\n", .{(row_count + 1) * 2});
-    debug_log("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * 8});
+    debug_log("Added {d} rows to preferences\n", .{(row_count + 1) * 2 * preferences.len});
 }
 
 fn fillDisplaysAndSpaces(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
