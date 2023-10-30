@@ -6,7 +6,7 @@ Disclaimer: although the name includes 'mac' and this is built for macOS, this i
 
 ### Read before use
 
-`macpaperd` is still alpha software, and as such it can damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. By break, I mean that Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in the macOS menu bar) and run `macpaperd --reset`. Oh and wallpaper won't work while it's broken, and when you fix it via the above command all the spaces' wallpapers will be reset. That said, feel free to try it out; just don't come crying if you can't figure out why it's broken.
+`macpaperd` is still beta software, and as such it could theoretically damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. In the case of breakage, Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in the macOS menu bar, or an already open terminal) and run `macpaperd --reset`. Until it is reset, the wallpaper will be black, and when you reset it all the spaces' wallpapers will be reset. That said, I haven't run into any issues that resetting does not resolve.
 
 ## Dependencies
 
