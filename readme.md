@@ -10,13 +10,13 @@ Disclaimer: although the name includes 'mac' and this is built for macOS, this i
 
 ## Dependencies
 
-`zig` >= 0.11.0 (`zig-master` not tested)  
-`macOS` >= 12 (only Monterey on M1 tested, other versions may work)
+`zig` >= 0.11.0
+`macOS` >= 12 (only Monterey and Ventura on M1 tested, other versions may work)
 
 ## Building
 
 The executable can be built with `zig build`, and the resulting executable can be found at `zig-out/bin/macpaperd`.  
-The `-Dbundle-sqlite` build option will bundle `zig-sqlite`'s sqlite3 instead of using the system installation, increasing binary size by about 6MB.
+The `-Dbundle-sqlite` build option will bundle `zig-sqlite`'s sqlite3 instead of using the system installation, increasing binary size by about 6MB but removing the runtime dependency
 
 ## Usage
 
@@ -82,6 +82,7 @@ Export 'LOG_DEBUG=1' to enable debug logging.
 ### `desktoppicture.db` Documentation
 
 [The documentation for `desktoppicture.db` can be found here](./doc/desktoppicture_db.md)
+The most up-to-date reference is the code itself; the state of the documentation will lag behind
 
 ### Licensing and attributions
 
