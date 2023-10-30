@@ -10,7 +10,7 @@ Disclaimer: although the name includes 'mac' and this is built for macOS, this i
 
 ## Dependencies
 
-`zig` >= 0.11.0
+`zig` >= 0.11.0  
 `macOS` >= 12 (only Monterey and Ventura on M1 tested, other versions may work)
 
 ## Building
