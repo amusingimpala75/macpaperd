@@ -23,8 +23,7 @@ The `-Dbundle-sqlite` build option will bundle `zig-sqlite`'s sqlite3 instead of
 ```
 Usage:
   Set a wallpaper image:
-  macpaperd --set [file]         Set 'file' as the wallpaper. 'file' must be an
-                                 absolute path.
+  macpaperd --set [file]         Set 'file' as the wallpaper.
             --orientation [type] Set the orientation of the image.
                                  'orientation' must be one of 'full', 'center',
                                  'fit', 'tile', or 'stretch'.

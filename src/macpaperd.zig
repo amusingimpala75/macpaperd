@@ -54,8 +54,7 @@ fn printUsage() void {
     const usage =
         \\Usage:
         \\  Set a wallpaper image:
-        \\  macpaperd --set [file]         Set 'file' as the wallpaper. 'file' must be an
-        \\                                 absolute path.
+        \\  macpaperd --set [file]         Set 'file' as the wallpaper.
         \\            --orientation [type] Set the orientation of the image.
         \\                                 'orientation' must be one of 'full', 'center',
         \\                                 'fit', 'tile', or 'stretch'.
@@ -91,14 +90,10 @@ const WallpaperImage = struct {
     allocator: std.mem.Allocator,
 
     fn init(allocator: std.mem.Allocator, file: []const u8) !WallpaperImage {
-        try validatePath(file);
-        var ret: WallpaperImage = WallpaperImage{
+        return WallpaperImage{
             .allocator = allocator,
-            .file = undefined,
+            .file = try ensurePathValid(allocator, file),
         };
-        ret.file = try allocator.alloc(u8, file.len);
-        std.mem.copy(u8, ret.file, file);
-        return ret;
     }
 
     fn initColor(allocator: std.mem.Allocator, color: u24) !WallpaperImage {
@@ -115,7 +110,7 @@ const WallpaperImage = struct {
         };
     }
 
-    fn validatePath(image: []const u8) !void {
+    fn ensurePathValid(allocator: std.mem.Allocator, image: []const u8) ![]u8 {
         if (!std.mem.eql(u8, ".png", image[image.len - 4 ..]) and
             !std.mem.eql(u8, ".jpg", image[image.len - 4 ..]) and
             !std.mem.eql(u8, ".tiff", image[image.len - 5 ..]) and
@@ -124,7 +119,16 @@ const WallpaperImage = struct {
             return error.InvalidFormat;
         }
 
-        try std.fs.accessAbsolute(image, .{}); // exists
+        if (image[0] == '/') {
+            try std.fs.accessAbsolute(image, .{}); // exists
+            var ret = try allocator.alloc(u8, image.len);
+            std.mem.copy(u8, ret, image);
+            return ret;
+        } else {
+            const global_path = try std.fs.path.resolve(allocator, &[_][]const u8{ std.os.getenv("PWD").?, image });
+            try std.fs.accessAbsolute(global_path, .{});
+            return global_path;
+        }
     }
 
     fn deinit(self: WallpaperImage) void {
