@@ -4,6 +4,9 @@
 
 Disclaimer: although the name includes 'mac' and this is built for macOS, this is not sponsored or run by Apple, and I am not affiliated with Apple.
 
+## As of macOS Sonoma, the wallpaper engine was entirely re-done, and I have yet to find where the configuration files reside
+(along with the ones for the system-wide constrast/highlight colors), and so for now this program WILL NOT WORK on macOS 14
+
 ### Read before use
 
 `macpaperd` is still beta software, and as such it could theoretically damage your system. Currently only single display setups are supported, and multi-display setups may break entirely. In the case of breakage, Launchpad, the Dock, and swiping between spaces will not function at all until you open a Terminal (accessible from Spotlight Search found in the spyglass icon in the macOS menu bar, or an already open terminal) and run `macpaperd --reset`. Until it is reset, the wallpaper will be black, and when you reset it all the spaces' wallpapers will be reset. That said, I haven't run into any issues that resetting does not resolve.
@@ -11,7 +14,7 @@ Disclaimer: although the name includes 'mac' and this is built for macOS, this i
 ## Dependencies
 
 `zig` >= 0.11.0  
-`macOS` >= 12 (only Monterey and Ventura on M1 tested, other versions may work)
+`macOS` 12-13 (only Monterey and Ventura on M1 tested, Sonoma currently fails as Apple re-did the wallpaper system)
 
 ## Building
 
