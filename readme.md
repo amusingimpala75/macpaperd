@@ -4,8 +4,7 @@
 
 Disclaimer: although the name includes 'mac' and this is built for macOS, this is not sponsored or run by Apple, and I am not affiliated with Apple.
 
-## As of macOS Sonoma, the wallpaper engine was entirely re-done, and I have yet to find where the configuration files reside
-(along with the ones for the system-wide constrast/highlight colors), and so for now this program WILL NOT WORK on macOS 14
+## As of macOS Sonoma, the wallpaper engine was entirely re-done, and I have yet to find where the configuration files reside (along with the ones for the system-wide constrast/highlight colors), and so for now this program WILL NOT WORK on macOS 14
 
 ### Read before use
 
